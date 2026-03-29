@@ -2,7 +2,7 @@ import Link from 'next/link'
 
 import { auth } from '@clerk/nextjs/server'
 
-import { buttonVariants } from '@/components/ui/button'
+import { buttonVariants } from '@/components/ui/button-variants'
 import { cn } from '@/lib/utils'
 
 export default async function MarketingLayout({ children }: { children: React.ReactNode }) {

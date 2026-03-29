@@ -1,7 +1,7 @@
 import Link from 'next/link'
 
 import { GenerationCounter } from '@/components/marketing/generation-counter'
-import { buttonVariants } from '@/components/ui/button'
+import { buttonVariants } from '@/components/ui/button-variants'
 import { cn } from '@/lib/utils'
 import { createServerClient } from '@/lib/supabase/server'
 import { isGalleryItemData, mapGenerationToGalleryItem } from '@/lib/gallery'

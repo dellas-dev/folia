@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { ArrowRight, CheckCircle2, Sparkles } from 'lucide-react'
 
 import { GenerationCounter } from '@/components/marketing/generation-counter'
-import { buttonVariants } from '@/components/ui/button'
+import { buttonVariants } from '@/components/ui/button-variants'
 import { cn } from '@/lib/utils'
 
 const styles = ['Watercolor', 'Line Art', 'Cartoon / Kawaii', 'Boho / Vintage', 'Minimalist / Flat']

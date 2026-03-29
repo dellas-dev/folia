@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { auth } from '@clerk/nextjs/server'
 
 import { CheckoutButton } from '@/components/payments/checkout-button'
-import { buttonVariants } from '@/components/ui/button'
+import { buttonVariants } from '@/components/ui/button-variants'
 import { PLANS } from '@/lib/plans'
 import { cn } from '@/lib/utils'
 

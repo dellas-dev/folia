@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { ArrowRight, CreditCard, Images, Sparkles, WandSparkles } from 'lucide-react'
 
 import { GenerationCounter } from '@/components/marketing/generation-counter'
-import { buttonVariants } from '@/components/ui/button'
+import { buttonVariants } from '@/components/ui/button-variants'
 import { requireCurrentProfile } from '@/lib/clerk/auth'
 import { cn } from '@/lib/utils'
 

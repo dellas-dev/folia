@@ -1,7 +1,7 @@
 import Link from 'next/link'
 
 import { CheckoutButton } from '@/components/payments/checkout-button'
-import { buttonVariants } from '@/components/ui/button'
+import { buttonVariants } from '@/components/ui/button-variants'
 import { requireCurrentProfile } from '@/lib/clerk/auth'
 import { cn } from '@/lib/utils'
 
