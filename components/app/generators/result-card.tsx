@@ -2,9 +2,11 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { Contrast, Download, ImageOff, PanelsTopLeft, Scissors } from 'lucide-react'
+import { Contrast, Download, ImageOff, LoaderCircle, PanelsTopLeft, Scissors } from 'lucide-react'
 
 import { buttonVariants } from '@/components/ui/button'
+import { useToast } from '@/components/ui/toast-provider'
+import { buildSvgWrapperFromImageUrl } from '@/lib/export/svg'
 import { cn } from '@/lib/utils'
 import type { GenerationResult } from '@/types'
 
@@ -31,8 +33,41 @@ type ResultCardProps = {
 export function ResultCard({ result }: ResultCardProps) {
   const [imgError, setImgError] = useState(false)
   const [bgMode, setBgMode] = useState<BgMode>('white')
+  const [isExportingSvg, setIsExportingSvg] = useState(false)
+  const { toast } = useToast()
   const format = result.format ?? 'png'
   const formatLabel = format.toUpperCase()
+
+  async function handleExportSvg() {
+    try {
+      setIsExportingSvg(true)
+      const svg = await buildSvgWrapperFromImageUrl(result.signed_url, {
+        title: `Folia result ${result.index + 1}`,
+      })
+
+      const blob = new Blob([svg], { type: 'image/svg+xml' })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `folia-clipart-${result.index + 1}.svg`
+      link.click()
+      URL.revokeObjectURL(url)
+
+      toast({
+        tone: 'success',
+        title: 'SVG export ready',
+        description: 'Downloaded as an SVG container for broader design-tool compatibility.',
+      })
+    } catch (error) {
+      toast({
+        tone: 'error',
+        title: 'SVG export failed',
+        description: error instanceof Error ? error.message : 'Failed to export SVG.',
+      })
+    } finally {
+      setIsExportingSvg(false)
+    }
+  }
 
   return (
     <article className="overflow-hidden rounded-[1.6rem] border border-border/70 bg-card shadow-sm shadow-black/5">
@@ -79,6 +114,15 @@ export function ResultCard({ result }: ResultCardProps) {
           <Download className="size-4" />
           Download {formatLabel}
         </a>
+        <button
+          type="button"
+          onClick={handleExportSvg}
+          disabled={isExportingSvg}
+          className={cn(buttonVariants({ variant: 'outline', size: 'sm' }), 'w-full')}
+        >
+          {isExportingSvg ? <LoaderCircle className="size-4 animate-spin" /> : <Download className="size-4" />}
+          {isExportingSvg ? 'Preparing SVG...' : 'Export SVG'}
+        </button>
         <div className="grid grid-cols-2 gap-2">
           <Link
             href={`/remove-bg?r2_key=${encodeURIComponent(result.r2_key)}`}
@@ -95,7 +139,7 @@ export function ResultCard({ result }: ResultCardProps) {
             Use in Mockup
           </Link>
         </div>
-        <p className="text-xs leading-6 text-muted-foreground">White background · Download links valid for 7 days.</p>
+        <p className="text-xs leading-6 text-muted-foreground">White background · Download links valid for 7 days. SVG export wraps the current image inside an SVG file for design-tool compatibility.</p>
       </div>
     </article>
   )
