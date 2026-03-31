@@ -8,6 +8,9 @@ export const r2 = new S3Client({
     accessKeyId: process.env.CF_R2_ACCESS_KEY_ID!,
     secretAccessKey: process.env.CF_R2_SECRET_ACCESS_KEY!,
   },
+  forcePathStyle: true,
+  requestChecksumCalculation: 'WHEN_REQUIRED',
+  responseChecksumValidation: 'WHEN_REQUIRED',
 })
 
 export async function uploadToR2(key: string, buffer: Buffer, contentType: string) {
@@ -26,6 +29,14 @@ export async function getSignedR2Url(key: string, expiresIn = 604800): Promise<s
   }), { expiresIn })
 }
 
+export function isOwnedR2Key(
+  clerkUserId: string,
+  key: string,
+  allowedRoots: Array<'uploads' | 'generations' | 'removebg'> = ['uploads', 'generations', 'removebg']
+) {
+  return allowedRoots.some((root) => key.startsWith(`${root}/${clerkUserId}/`))
+}
+
 export function buildUploadR2Key(clerkUserId: string, originalFilename: string) {
   const sanitized = originalFilename
     .toLowerCase()
@@ -36,6 +47,10 @@ export function buildUploadR2Key(clerkUserId: string, originalFilename: string) 
   return `uploads/${clerkUserId}/${Date.now()}-${sanitized || 'file'}`
 }
 
-export function buildGenerationR2Key(clerkUserId: string, generationId: string, index: number) {
-  return `generations/${clerkUserId}/${generationId}-${index}.png`
+export function buildGenerationR2Key(clerkUserId: string, generationId: string, index: number, ext = 'png') {
+  return `generations/${clerkUserId}/${generationId}-${index}.${ext}`
+}
+
+export function buildRemoveBgR2Key(clerkUserId: string) {
+  return `removebg/${clerkUserId}/${Date.now()}.png`
 }
