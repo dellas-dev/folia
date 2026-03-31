@@ -17,19 +17,19 @@ const quickActions = [
   {
     href: '/elements',
     label: 'Generate element',
-    description: 'Text prompt and reference-image flow scaffold.',
+    description: 'Create your next clipart asset from a prompt or reference image.',
     icon: WandSparkles,
   },
   {
     href: '/mockups',
     label: 'Open mockups',
-    description: 'Reserved for the Etsy-style listing mockup workflow.',
+    description: 'Turn flat invitation artwork into styled listing scenes.',
     icon: Sparkles,
   },
   {
     href: '/gallery',
     label: 'View gallery',
-    description: 'History and public publishing controls land in later phases.',
+    description: 'Review saved generations, re-download files, and manage visibility.',
     icon: Images,
   },
 ]
@@ -49,7 +49,7 @@ export default async function DashboardPage() {
               <p className="text-sm uppercase tracking-[0.28em] text-muted-foreground">Credits overview</p>
               <h2 className="text-5xl font-semibold text-foreground">{profile.credits}</h2>
               <p className="max-w-xl text-base leading-7 text-muted-foreground">
-                Tier: <span className="font-medium capitalize text-foreground">{profile.tier}</span>. Folia has no free tier, so this dashboard stays empty until a purchase or manual test credit is added.
+                Tier: <span className="font-medium capitalize text-foreground">{profile.tier}</span>. Use credits to generate clipart elements and mockups, then keep your best results in the gallery.
               </p>
             </div>
             <Link href="/pricing" className={cn(buttonVariants({ size: 'lg' }))}>
@@ -71,20 +71,35 @@ export default async function DashboardPage() {
             <div className="mt-8 rounded-3xl border border-dashed border-border bg-secondary/40 p-5">
               <p className="text-lg font-medium text-foreground">Your workspace is ready, but you do not have credits yet.</p>
               <p className="mt-2 max-w-2xl text-sm leading-7 text-muted-foreground">
-                That is expected in Phase 1. Payments arrive later, so you can add test credits directly in Supabase during development or continue building the generator flow in Phase 2.
+                Start with a paid plan to unlock generation. Once you have credits, you can create elements, build mockups, and save everything in your gallery.
+              </p>
+              <div className="mt-5 flex flex-wrap gap-3">
+                <Link href="/pricing" className={cn(buttonVariants({ size: 'lg' }))}>
+                  Buy credits
+                </Link>
+                <Link href="/settings/billing" className={cn(buttonVariants({ variant: 'outline', size: 'lg' }))}>
+                  Open billing
+                </Link>
+              </div>
+            </div>
+          ) : (
+            <div className="mt-8 rounded-3xl border border-border/70 bg-background p-5">
+              <p className="text-lg font-medium text-foreground">You are ready to create.</p>
+              <p className="mt-2 max-w-2xl text-sm leading-7 text-muted-foreground">
+                Generate a fresh element, build a mockup from your invitation artwork, or open your gallery to manage previous results.
               </p>
             </div>
-          ) : null}
+          )}
         </article>
 
         <article className="rounded-[2rem] border border-border/70 bg-[linear-gradient(180deg,oklch(0.98_0.015_84),oklch(0.94_0.04_145))] p-8 shadow-sm shadow-black/5">
           <p className="text-sm uppercase tracking-[0.28em] text-muted-foreground">Next milestone</p>
-          <h2 className="mt-3 text-3xl font-semibold text-foreground">Element Generator</h2>
+          <h2 className="mt-3 text-3xl font-semibold text-foreground">Create your next best seller faster.</h2>
           <p className="mt-3 text-sm leading-7 text-foreground/75">
-            The current shell is ready for Phase 2: style selector, prompt input, reference upload, generation pipeline, and R2 result storage.
+            Start with elements for clipart packs, then move into mockups when you need better listing images for your storefront.
           </p>
           <Link href="/elements" className="mt-6 inline-flex items-center gap-2 text-sm font-medium text-primary">
-            Open placeholder
+            Open generator
             <ArrowRight className="size-4" />
           </Link>
         </article>
@@ -98,8 +113,8 @@ export default async function DashboardPage() {
             <Link
               key={action.href}
               href={action.href}
-              className="rounded-[1.8rem] border border-border/70 bg-card/85 p-6 shadow-sm shadow-black/5 transition-transform hover:-translate-y-0.5"
-            >
+            className="rounded-[1.8rem] border border-border/70 bg-card/85 p-6 shadow-sm shadow-black/5 transition-transform hover:-translate-y-0.5"
+          >
               <span className="flex size-11 items-center justify-center rounded-2xl bg-primary/10 text-primary">
                 <Icon className="size-5" />
               </span>
@@ -114,7 +129,7 @@ export default async function DashboardPage() {
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <p className="text-sm uppercase tracking-[0.28em] text-muted-foreground">Billing status</p>
-            <h2 className="mt-2 text-3xl font-semibold text-foreground">Payments are intentionally pending until Phase 5.</h2>
+            <h2 className="mt-2 text-3xl font-semibold text-foreground">Manage credits, upgrades, and subscription status.</h2>
           </div>
           <Link href="/settings/billing" className={cn(buttonVariants({ variant: 'outline', size: 'lg' }))}>
             <CreditCard className="size-4" />

@@ -2,6 +2,7 @@ import Link from 'next/link'
 
 import { auth } from '@clerk/nextjs/server'
 
+import { FoliaLogo } from '@/components/brand/folia-logo'
 import { buttonVariants } from '@/components/ui/button-variants'
 import { cn } from '@/lib/utils'
 
@@ -11,13 +12,9 @@ export default async function MarketingLayout({ children }: { children: React.Re
   return (
     <div className="min-h-screen">
       <header className="sticky top-0 z-20 border-b border-border/60 bg-background/80 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
           <Link href="/" className="flex items-center gap-3">
-            <span className="flex size-11 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-sm shadow-primary/20">F</span>
-            <div>
-              <p className="text-xl font-semibold leading-none">Folia</p>
-              <p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">AI clipart for sellers</p>
-            </div>
+            <FoliaLogo markClassName="size-10 rounded-2xl" />
           </Link>
 
           <nav className="hidden items-center gap-6 text-sm font-medium text-muted-foreground md:flex">
@@ -28,10 +25,16 @@ export default async function MarketingLayout({ children }: { children: React.Re
 
           <Link
             href={userId ? '/dashboard' : '/sign-up'}
-            className={cn(buttonVariants({ size: 'lg' }))}
+            className={cn(buttonVariants({ size: 'lg' }), 'w-full justify-center sm:w-auto')}
           >
             {userId ? 'Open dashboard' : 'Get started'}
           </Link>
+
+          <nav className="flex w-full items-center gap-4 overflow-x-auto text-sm font-medium text-muted-foreground md:hidden">
+            <Link href="/community" className="whitespace-nowrap transition-colors hover:text-foreground">Community</Link>
+            <Link href="/pricing" className="whitespace-nowrap transition-colors hover:text-foreground">Pricing</Link>
+            <Link href="/sign-in" className="whitespace-nowrap transition-colors hover:text-foreground">Sign in</Link>
+          </nav>
         </div>
       </header>
 

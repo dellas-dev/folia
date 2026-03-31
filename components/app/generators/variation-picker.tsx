@@ -15,7 +15,7 @@ const options = [1, 2, 3, 4] as const
 export function VariationPicker({ value, maxVariations, onChange }: VariationPickerProps) {
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
         <p className="text-sm font-medium text-foreground">Variations</p>
         <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Credits spent = images returned</p>
       </div>

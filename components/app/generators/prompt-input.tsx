@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 const promptExamples = [
   'Cute panda holding colorful balloons',
@@ -18,10 +18,13 @@ const promptExamples = [
 type PromptInputProps = {
   value: string
   onChange: (value: string) => void
+  suggestedPrompt?: string
 }
 
-export function PromptInput({ value, onChange }: PromptInputProps) {
+export function PromptInput({ value, onChange, suggestedPrompt }: PromptInputProps) {
   const [placeholderIndex, setPlaceholderIndex] = useState(0)
+  const [wasAutoFilled, setWasAutoFilled] = useState(false)
+  const prevSuggestedRef = useRef<string | undefined>(undefined)
 
   useEffect(() => {
     const interval = window.setInterval(() => {
@@ -31,25 +34,53 @@ export function PromptInput({ value, onChange }: PromptInputProps) {
     return () => window.clearInterval(interval)
   }, [])
 
+  // Auto-fill when suggestedPrompt changes — only if prompt field is currently empty
+  useEffect(() => {
+    if (
+      suggestedPrompt &&
+      suggestedPrompt !== prevSuggestedRef.current &&
+      value === ''
+    ) {
+      onChange(suggestedPrompt)
+      setWasAutoFilled(true)
+    }
+    prevSuggestedRef.current = suggestedPrompt
+  }, [suggestedPrompt, value, onChange])
+
+  function handleChange(newValue: string) {
+    onChange(newValue)
+
+    if (wasAutoFilled && newValue !== suggestedPrompt) {
+      setWasAutoFilled(false)
+    }
+  }
+
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
         <label htmlFor="element-prompt" className="text-sm font-medium text-foreground">
           Prompt
         </label>
         <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Any language</p>
       </div>
       <textarea
+        autoFocus
         id="element-prompt"
         value={value}
-        onChange={(event) => onChange(event.target.value)}
+        onChange={(event) => handleChange(event.target.value)}
         placeholder={promptExamples[placeholderIndex]}
         rows={6}
         className="w-full rounded-[1.4rem] border border-input bg-background px-4 py-3 text-sm outline-none transition-colors placeholder:text-muted-foreground/70 focus:border-primary focus:ring-3 focus:ring-primary/15"
       />
-      <p className="text-sm text-muted-foreground">
-        Write naturally. Gemini will enhance it into a cleaner clipart prompt before generation.
-      </p>
+      {wasAutoFilled ? (
+        <p className="text-[11px] text-muted-foreground/70">
+          ✨ Auto-described from your reference — edit freely
+        </p>
+      ) : (
+        <p className="text-sm text-muted-foreground">
+          Write naturally. Folia AI will enhance your prompt before generation.
+        </p>
+      )}
     </div>
   )
 }

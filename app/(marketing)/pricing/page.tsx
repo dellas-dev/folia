@@ -42,7 +42,7 @@ export default async function PricingPage({ searchParams }: PricingPageProps) {
     <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8 lg:py-20">
       <section className="space-y-4 text-center">
         <p className="text-sm uppercase tracking-[0.3em] text-muted-foreground">Pricing</p>
-        <h1 className="text-5xl font-semibold tracking-tight text-foreground">No free tier. Clean usage from day one.</h1>
+        <h1 className="text-4xl font-semibold tracking-tight text-foreground sm:text-5xl">No free tier. Clean usage from day one.</h1>
         <p className="mx-auto max-w-2xl text-lg leading-8 text-muted-foreground">
           Choose IDR for Indonesia checkout or USD for Polar international checkout. Mayar subscription verification may still be pending depending on your account status.
         </p>
@@ -78,7 +78,8 @@ export default async function PricingPage({ searchParams }: PricingPageProps) {
       </section>
 
       <section className="mt-10 overflow-hidden rounded-[1.8rem] border border-border/70 bg-card/90 shadow-sm shadow-black/5">
-        <table className="w-full text-left text-sm">
+        <div className="overflow-x-auto">
+        <table className="min-w-[680px] w-full text-left text-sm">
           <thead className="bg-muted/60 text-muted-foreground">
             <tr>
               <th className="px-6 py-4">Feature</th>
@@ -98,6 +99,7 @@ export default async function PricingPage({ searchParams }: PricingPageProps) {
             ))}
           </tbody>
         </table>
+        </div>
       </section>
 
       <div className="mt-10 text-center text-sm text-muted-foreground">

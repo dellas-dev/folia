@@ -2,6 +2,8 @@ import type { Metadata } from 'next'
 import { ClerkProvider } from '@clerk/nextjs'
 import { Cormorant_Garamond, Manrope } from 'next/font/google'
 
+import { ToastProvider } from '@/components/ui/toast-provider'
+
 import './globals.css'
 
 const manrope = Manrope({
@@ -30,7 +32,7 @@ export default function RootLayout({
     <ClerkProvider>
       <html lang="en" suppressHydrationWarning>
         <body className={`${manrope.variable} ${cormorant.variable} antialiased`}>
-          {children}
+          <ToastProvider>{children}</ToastProvider>
         </body>
       </html>
     </ClerkProvider>
