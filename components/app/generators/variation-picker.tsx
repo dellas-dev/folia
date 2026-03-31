@@ -5,12 +5,12 @@ import { Lock } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 type VariationPickerProps = {
-  value: 1 | 2 | 3 | 4
+  value: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8
   maxVariations: number
-  onChange: (value: 1 | 2 | 3 | 4) => void
+  onChange: (value: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8) => void
 }
 
-const options = [1, 2, 3, 4] as const
+const options = [1, 2, 3, 4, 5, 6, 7, 8] as const
 
 export function VariationPicker({ value, maxVariations, onChange }: VariationPickerProps) {
   return (
@@ -19,7 +19,7 @@ export function VariationPicker({ value, maxVariations, onChange }: VariationPic
         <p className="text-sm font-medium text-foreground">Variations</p>
         <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Credits spent = images returned</p>
       </div>
-      <div className="grid grid-cols-4 gap-3">
+      <div className="grid grid-cols-4 gap-3 lg:grid-cols-8">
         {options.map((option) => {
           const locked = option > maxVariations
 

@@ -1,8 +1,11 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { Download, LoaderCircle } from 'lucide-react'
 
 import { ResultCard } from '@/components/app/generators/result-card'
+import { buttonVariants } from '@/components/ui/button'
+import { useToast } from '@/components/ui/toast-provider'
 import { cn } from '@/lib/utils'
 import type { GenerationResult } from '@/types'
 
@@ -100,6 +103,53 @@ function SkeletonCard() {
 }
 
 export function ResultGrid({ results, promptEnhanced, isGenerating, numExpected = 1 }: ResultGridProps) {
+  const { toast } = useToast()
+  const [isDownloadingZip, setIsDownloadingZip] = useState(false)
+
+  async function handleDownloadZip() {
+    try {
+      setIsDownloadingZip(true)
+      const { default: JSZip } = await import('jszip')
+      const zip = new JSZip()
+
+      await Promise.all(
+        results.map(async (result) => {
+          const response = await fetch(result.signed_url)
+
+          if (!response.ok) {
+            throw new Error('Failed to prepare ZIP download.')
+          }
+
+          const blob = await response.blob()
+          const format = result.format ?? 'jpg'
+          zip.file(`folia-result-${result.index + 1}.${format}`, blob)
+        })
+      )
+
+      const archive = await zip.generateAsync({ type: 'blob' })
+      const url = URL.createObjectURL(archive)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = 'folia-results.zip'
+      link.click()
+      URL.revokeObjectURL(url)
+
+      toast({
+        tone: 'success',
+        title: 'ZIP download ready',
+        description: `${results.length} files bundled into one download.`,
+      })
+    } catch (error) {
+      toast({
+        tone: 'error',
+        title: 'ZIP download failed',
+        description: error instanceof Error ? error.message : 'Failed to create ZIP archive.',
+      })
+    } finally {
+      setIsDownloadingZip(false)
+    }
+  }
+
   if (isGenerating) {
     return (
       <section className="space-y-5">
@@ -118,7 +168,7 @@ export function ResultGrid({ results, promptEnhanced, isGenerating, numExpected 
       <div className="rounded-[1.8rem] border border-dashed border-border/70 bg-card/60 p-8 text-center">
         <h2 className="text-2xl font-semibold text-foreground">Your generated images will appear here.</h2>
         <p className="mt-3 text-sm leading-7 text-muted-foreground">
-          Pick a style, describe the element you need, then generate. Folia will return high-quality clipart JPEGs with white backgrounds.
+          Pick a style, describe the element you need, then generate. Folia will return high-quality clipart images with white backgrounds.
         </p>
       </div>
     )
@@ -127,8 +177,23 @@ export function ResultGrid({ results, promptEnhanced, isGenerating, numExpected 
   return (
     <section className="space-y-5">
       <div className="rounded-[1.8rem] border border-border/70 bg-card/85 p-5 shadow-sm shadow-black/5">
-        <p className="text-sm uppercase tracking-[0.22em] text-muted-foreground">Enhanced prompt</p>
-        <p className="mt-3 text-sm leading-7 text-foreground/80">{promptEnhanced}</p>
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <p className="text-sm uppercase tracking-[0.22em] text-muted-foreground">Enhanced prompt</p>
+            <p className="mt-3 text-sm leading-7 text-foreground/80">{promptEnhanced}</p>
+          </div>
+          {results.length > 1 ? (
+            <button
+              type="button"
+              onClick={handleDownloadZip}
+              disabled={isDownloadingZip}
+              className={cn(buttonVariants({ variant: 'outline', size: 'sm' }), 'shrink-0')}
+            >
+              {isDownloadingZip ? <LoaderCircle className="size-4 animate-spin" /> : <Download className="size-4" />}
+              {isDownloadingZip ? 'Preparing ZIP...' : 'Download ZIP'}
+            </button>
+          ) : null}
+        </div>
       </div>
       <div className="grid gap-5 lg:grid-cols-2 2xl:grid-cols-3">
         {results.map((result) => (

@@ -33,7 +33,7 @@ const maxVariationsByTier: Record<UserTier, number> = {
   none: 1,
   starter: 1,
   pro: 4,
-  business: 4,
+  business: 8,
 }
 
 const PROMPT_HISTORY_STORAGE_KEY = 'folia:element-prompt-history'
@@ -42,7 +42,7 @@ export function ElementForm({ tier, startingCredits, initialPrompt = '', initial
   const { toast } = useToast()
   const [style, setStyle] = useState(initialStyle ?? STYLE_OPTIONS[0].id)
   const [prompt, setPrompt] = useState(initialPrompt)
-  const [numVariations, setNumVariations] = useState<1 | 2 | 3 | 4>(1)
+  const [numVariations, setNumVariations] = useState<1 | 2 | 3 | 4 | 5 | 6 | 7 | 8>(1)
   const [referenceImageKey, setReferenceImageKey] = useState<string | null>(null)
   const [referenceFileName, setReferenceFileName] = useState<string | null>(null)
   const [suggestedPrompt, setSuggestedPrompt] = useState('')

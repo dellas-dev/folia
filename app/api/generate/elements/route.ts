@@ -55,7 +55,7 @@ export async function POST(request: Request) {
   const effectiveTier = getEffectiveTier(profile.tier)
   const plan = PLANS[effectiveTier]
   const requestedVariations = typeof body.num_variations === 'number' ? body.num_variations : 1
-  const numVariations = Math.max(1, Math.min(4, Math.floor(requestedVariations)))
+  const numVariations = Math.max(1, Math.min(8, Math.floor(requestedVariations)))
 
   if (body.reference_image_r2_key && !plan.reference_image) {
     return Response.json({ error: 'Reference image requires Pro or Business' }, { status: 403 })
