@@ -10,6 +10,18 @@ export { auth, currentUser }
 
 export type Profile = Database['public']['Tables']['profiles']['Row']
 
+/**
+ * Minimal user shape returned by getCurrentProfile / requireCurrentProfile.
+ * Populated from the JWT (auth()) + Supabase profile — no Clerk API call needed
+ * for returning users, so connectivity issues with Clerk's backend won't break
+ * every page load.
+ */
+export type AppUser = {
+  id: string
+  firstName: string | null
+  fullName: string | null
+}
+
 function getPrimaryEmail(user: User) {
   return user.emailAddresses.find((email) => email.id === user.primaryEmailAddressId)?.emailAddress
     ?? user.primaryEmailAddress?.emailAddress
@@ -55,10 +67,17 @@ export async function syncProfileFromClerkUser(user: User) {
   return data
 }
 
-export async function getCurrentProfile() {
-  const user = await currentUser()
+/**
+ * Uses auth() (JWT-only, no network) as the primary auth check.
+ * currentUser() (Clerk API call) is only used for first-time profile creation.
+ */
+export async function getCurrentProfile(): Promise<{
+  user: AppUser | null
+  profile: Profile | null
+}> {
+  const { userId } = await auth()
 
-  if (!user) {
+  if (!userId) {
     return { user: null, profile: null }
   }
 
@@ -66,16 +85,38 @@ export async function getCurrentProfile() {
   const { data, error } = await supabase
     .from('profiles')
     .select('*')
-    .eq('clerk_user_id', user.id)
+    .eq('clerk_user_id', userId)
     .maybeSingle()
 
   if (error) {
     throw error
   }
 
+  if (data) {
+    // Profile exists — build AppUser from JWT + Supabase data, no Clerk API call
+    const fullName = data.full_name ?? null
+    const firstName = fullName?.split(' ')[0] ?? null
+    return {
+      user: { id: userId, firstName, fullName },
+      profile: data,
+    }
+  }
+
+  // First-time user: profile doesn't exist yet — must call Clerk API to sync
+  const clerkUser = await currentUser()
+  if (!clerkUser) {
+    return { user: null, profile: null }
+  }
+
+  const profile = await syncProfileFromClerkUser(clerkUser)
+  const fullName = getFullName(clerkUser)
   return {
-    user,
-    profile: data ?? (await syncProfileFromClerkUser(user)),
+    user: {
+      id: clerkUser.id,
+      firstName: clerkUser.firstName ?? fullName?.split(' ')[0] ?? null,
+      fullName,
+    },
+    profile,
   }
 }
 

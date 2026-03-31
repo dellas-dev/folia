@@ -16,25 +16,25 @@ type GenerateElementImagesInput = {
   resolution: number
 }
 
-async function callFalModel(model: string, input: GenerateElementImagesInput) {
+async function generateSingleImage(model: string, prompt: string, resolution: number): Promise<FalImage> {
   const response = await fetch(`${FAL_ENDPOINT}/${model}`, {
     method: 'POST',
     headers: getFalHeaders(),
     body: JSON.stringify({
-      prompt: input.prompt,
+      prompt,
       image_size: {
-        width: input.resolution,
-        height: input.resolution,
+        width: resolution,
+        height: resolution,
       },
-      num_images: input.numImages,
-      output_format: 'png',
+      num_images: 1,
+      output_format: 'jpeg',
       sync_mode: true,
       enhance_prompt: false,
     }),
   })
 
   if (!response.ok) {
-    throw new Error(await response.text())
+    throw new Error(`Fal.ai generation failed: ${await response.text()}`)
   }
 
   const data = await response.json() as { images?: FalImage[] }
@@ -43,23 +43,30 @@ async function callFalModel(model: string, input: GenerateElementImagesInput) {
     throw new Error('Fal.ai did not return any generated images.')
   }
 
-  return data.images
+  return data.images[0]
 }
 
 export async function generateElementImages(input: GenerateElementImagesInput): Promise<FalGenerationResponse> {
-  try {
-    const images = await callFalModel(FAL_MODELS.elementsPrimary, input)
+  let modelUsed: string = FAL_MODELS.elementsPrimary
 
-    return {
-      images,
-      modelUsed: FAL_MODELS.elementsPrimary,
-    }
-  } catch {
-    const images = await callFalModel(FAL_MODELS.elementsFallback, input)
-
-    return {
-      images,
-      modelUsed: FAL_MODELS.elementsFallback,
+  const generateWithFallback = async (): Promise<FalImage[]> => {
+    try {
+      return await Promise.all(
+        Array.from({ length: input.numImages }, () =>
+          generateSingleImage(FAL_MODELS.elementsPrimary, input.prompt, input.resolution)
+        )
+      )
+    } catch {
+      modelUsed = FAL_MODELS.elementsFallback
+      return await Promise.all(
+        Array.from({ length: input.numImages }, () =>
+          generateSingleImage(FAL_MODELS.elementsFallback, input.prompt, input.resolution)
+        )
+      )
     }
   }
+
+  const images = await generateWithFallback()
+
+  return { images, modelUsed }
 }

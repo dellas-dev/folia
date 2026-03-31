@@ -129,9 +129,9 @@ export async function POST(request: Request) {
           throw new Error('Failed to download generated image from Fal.ai.')
         }
 
-        const contentType = 'image/png'
+        const contentType = response.headers.get('content-type') || image.content_type || 'image/jpeg'
         const buffer = Buffer.from(await response.arrayBuffer())
-        const r2Key = buildGenerationR2Key(user.id, generationId, index + 1, 'png')
+        const r2Key = buildGenerationR2Key(user.id, generationId, index + 1, 'jpg')
 
         await uploadToR2(r2Key, buffer, contentType)
 
@@ -139,7 +139,7 @@ export async function POST(request: Request) {
           r2_key: r2Key,
           signed_url: await getSignedR2Url(r2Key),
           index,
-          format: 'png' as const,
+          format: 'jpg' as const,
         }
       })
     )

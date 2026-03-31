@@ -4,6 +4,7 @@ export const FAL_ENDPOINT = 'https://fal.run'
 export const FAL_MODELS = {
   elementsPrimary: 'fal-ai/flux-pro',
   elementsFallback: 'fal-ai/flux/dev',
+  bgRemoval: 'fal-ai/bria/background-removal',
   mockup: 'fal-ai/flux-pro/kontext',
 } as const
 
