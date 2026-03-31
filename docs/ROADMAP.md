@@ -83,7 +83,7 @@ Phase 0 → 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8
 *Estimated: 3–4 days*
 
 - [ ] Build `lib/r2/client.ts` — R2 upload + signed URL functions
-- [ ] Build `lib/gemini/enhancer.ts` — LLM prompt enhancement
+- [ ] Build `lib/ai/enhancer.ts` — LLM prompt enhancement
   - Text mode: enhance prompt with style modifiers
   - Vision mode: analyze reference image → generate matching prompt
 - [ ] Build `lib/fal/elements.ts` — generation with fallback logic

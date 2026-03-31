@@ -1,6 +1,6 @@
 import { getCurrentProfile } from '@/lib/clerk/auth'
 import { generateElementImages } from '@/lib/fal/elements'
-import { enhancePrompt } from '@/lib/gemini/enhancer'
+import { enhancePrompt } from '@/lib/ai/enhancer'
 import { PLANS } from '@/lib/plans'
 import { buildGenerationR2Key, getSignedR2Url, isOwnedR2Key, uploadToR2 } from '@/lib/r2/client'
 import { createServerClient } from '@/lib/supabase/server'

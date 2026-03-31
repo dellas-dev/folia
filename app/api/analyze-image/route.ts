@@ -1,5 +1,5 @@
 import { getCurrentProfile } from '@/lib/clerk/auth'
-import { analyzeReferenceImage } from '@/lib/gemini/enhancer'
+import { analyzeReferenceImage } from '@/lib/ai/enhancer'
 import { getSignedR2Url, isOwnedR2Key } from '@/lib/r2/client'
 
 export async function POST(request: Request) {

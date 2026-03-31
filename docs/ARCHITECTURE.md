@@ -183,7 +183,7 @@ User selects style + types prompt (or uploads reference image)
 ## 4. Gemini LLM Enhancer — Detail
 
 ```typescript
-// lib/gemini/enhancer.ts
+// lib/ai/enhancer.ts
 
 import { GoogleGenerativeAI } from '@google/generative-ai'
 

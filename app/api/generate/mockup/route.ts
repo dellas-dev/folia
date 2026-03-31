@@ -1,6 +1,6 @@
 import { getCurrentProfile } from '@/lib/clerk/auth'
 import { generateMockupImage } from '@/lib/fal/mockups'
-import { analyzeInvitationForMockup } from '@/lib/gemini/enhancer'
+import { analyzeInvitationForMockup } from '@/lib/ai/enhancer'
 import { getPlanForTier } from '@/lib/plans'
 import { buildGenerationR2Key, getSignedR2Url, isOwnedR2Key, uploadToR2 } from '@/lib/r2/client'
 import { createServerClient } from '@/lib/supabase/server'
@@ -65,13 +65,13 @@ export async function POST(request: Request) {
     const invitationSignedUrl = await getSignedR2Url(body.invitation_r2_key, 300)
 
     let finalScenePrompt: string
-    let geminiUsed = false
+    let aiEnhancedUsed = false
 
     if (scenePreset) {
-      // Preset mode — use preset prompt directly, Gemini skipped
+      // Preset mode — use preset prompt directly, AI analysis skipped
       finalScenePrompt = MOCKUP_SCENE_PROMPTS[scenePreset]
     } else {
-      // AUTO mode — Gemini reads invitation and generates matching scene
+      // AUTO mode — AI reads invitation and generates matching scene
       const imageResponse = await fetch(invitationSignedUrl)
 
       if (!imageResponse.ok) {
@@ -86,11 +86,11 @@ export async function POST(request: Request) {
         invitationMimeType,
         customPrompt
       )
-      geminiUsed = true
+      aiEnhancedUsed = true
     }
 
     console.log('=== FINAL SCENE PROMPT ===')
-    console.log('Mode:', scenePreset ? `preset:${scenePreset}` : 'auto (Gemini)')
+    console.log('Mode:', scenePreset ? `preset:${scenePreset}` : 'auto (AI-assisted)')
     console.log(finalScenePrompt)
     console.log('==========================')
 
@@ -129,7 +129,7 @@ export async function POST(request: Request) {
       result_r2_keys: [r2Key],
       result_count: 1,
       model_used: 'fal-ai/flux-pro/kontext',
-      gemini_used: geminiUsed,
+      gemini_used: aiEnhancedUsed,
       generation_time_ms: Date.now() - generationStartedAt,
       resolution: plan.resolution,
       is_public: false,
