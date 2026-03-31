@@ -12,6 +12,9 @@ export type MockupScenePreset =
   | 'marble-eucalyptus'
   | 'golden-plate'
   | 'floral-flatlay'
+  | 'rustic-wood'
+  | 'blush-silk'
+  | 'modern-desk'
   | 'holiday-scene'
   | 'spooky-scene'
   | 'party-table'
@@ -25,9 +28,10 @@ export interface GenerationResult {
 export interface StyleOption {
   id: IllustrationStyle
   label: string
-  emoji: string
+  icon: string
   modifier: string
-  bestFor: string
+  description: string
+  sampleImage: string
 }
 
 export interface MockupSceneOption {
@@ -43,37 +47,42 @@ export const STYLE_OPTIONS: StyleOption[] = [
   {
     id: 'watercolor',
     label: 'Watercolor',
-    emoji: '🎨',
-    modifier: 'soft watercolor painting, delicate brush strokes, hand-painted, translucent layers',
-    bestFor: 'Wedding, baby shower, floral',
+    icon: '🎨',
+    modifier: 'soft watercolor illustration, wet-on-wet technique, visible paper texture, translucent color washes, delicate hand-painted brush strokes, color bleeding at edges, white paper showing through highlights, professional botanical art style',
+    description: 'Wedding, floral, baby shower',
+    sampleImage: '/samples/watercolor.jpg',
   },
   {
     id: 'line_art',
     label: 'Line Art',
-    emoji: '✏️',
-    modifier: 'clean vector line art, black outline only, no fill, coloring book style',
-    bestFor: 'Minimalist, DIY templates',
+    icon: '✏️',
+    modifier: 'clean black ink line art illustration, precise uniform stroke weight, no color fills, crisp vector-like outlines, fine detail linework, coloring book quality, elegant contour drawing',
+    description: 'Minimalist, DIY templates',
+    sampleImage: '/samples/line-art.jpg',
   },
   {
     id: 'cartoon',
     label: 'Cartoon / Kawaii',
-    emoji: '🐼',
-    modifier: 'cute kawaii cartoon illustration, rounded shapes, big sparkly eyes, pastel colors, chibi style',
-    bestFor: 'Kids birthday, baby shower',
+    icon: '🐼',
+    modifier: 'cute kawaii cartoon illustration, bold clean black outlines, flat cel-shading colors, pastel color palette, rounded bubbly shapes, chibi proportions, big expressive sparkly eyes, cheerful playful style',
+    description: 'Kids birthday, baby shower',
+    sampleImage: '/samples/cartoon.jpg',
   },
   {
     id: 'boho',
     label: 'Boho / Vintage',
-    emoji: '🌾',
-    modifier: 'bohemian vintage illustration, earthy tones, aged texture, folk art style, rustic',
-    bestFor: 'Boho wedding, rustic party',
+    icon: '🌾',
+    modifier: 'bohemian vintage hand-drawn illustration, muted earthy tones (terracotta, sage, dusty rose, cream), slightly rough ink texture, folk art decorative style, aged paper look, rustic botanical aesthetic',
+    description: 'Boho wedding, rustic party',
+    sampleImage: '/samples/boho.jpg',
   },
   {
     id: 'minimalist',
     label: 'Minimalist / Flat',
-    emoji: '⬜',
-    modifier: 'minimalist flat design, simple geometric shapes, clean lines, modern, bold colors',
-    bestFor: 'Modern wedding, corporate',
+    icon: '⬜',
+    modifier: 'clean minimalist flat design illustration, simple geometric shapes, maximum 3 flat colors, bold clean outlines, modern scandinavian aesthetic, crisp edges, no gradients, no textures',
+    description: 'Modern wedding, corporate',
+    sampleImage: '/samples/minimalist.jpg',
   },
 ]
 
@@ -108,6 +117,33 @@ export const MOCKUP_SCENE_OPTIONS: MockupSceneOption[] = [
     description: 'Airy peonies, linen textures, and dreamy pastel styling.',
     prompt:
       'Place this invitation card in an elegant flat lay with fresh peonies, roses, and linen fabric background, light and airy photography style, overhead view, dreamy pastel tones, realistic Etsy listing mockup',
+  },
+  {
+    id: 'rustic-wood',
+    label: 'Rustic Wood Table',
+    emoji: '🪵',
+    accessLevel: 'all',
+    description: 'Warm wooden tabletop with handmade textures and botanical accents.',
+    prompt:
+      'Place this invitation card on a warm rustic wooden table with torn handmade paper, soft linen ribbon, dried flowers, and natural window light, top-down styled product photography, realistic Etsy listing mockup',
+  },
+  {
+    id: 'blush-silk',
+    label: 'Blush Silk Editorial',
+    emoji: '🎀',
+    accessLevel: 'pro',
+    description: 'Soft silk fabric, blush palette, and romantic editorial styling.',
+    prompt:
+      'Place this invitation card on draped blush silk fabric with delicate ribbon, pearl details, and soft diffused daylight, romantic editorial wedding styling, overhead product photography, realistic Etsy listing mockup',
+  },
+  {
+    id: 'modern-desk',
+    label: 'Modern Desk Flat Lay',
+    emoji: '🖇️',
+    accessLevel: 'pro',
+    description: 'Clean studio desk with refined neutral props and minimalist styling.',
+    prompt:
+      'Place this invitation card in a clean modern flat lay with neutral stationery props, paper clips, ceramic cup, soft shadow, and minimalist studio styling, top-down product photography, realistic Etsy listing mockup',
   },
   {
     id: 'holiday-scene',
