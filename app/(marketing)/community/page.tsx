@@ -3,6 +3,8 @@ import Link from 'next/link'
 
 import { GenerationCounter } from '@/components/marketing/generation-counter'
 import { buttonVariants } from '@/components/ui/button-variants'
+import { marketingCopy } from '@/lib/marketing/copy'
+import { getMarketingLocale } from '@/lib/marketing/locale'
 import { cn } from '@/lib/utils'
 import { createServerClient } from '@/lib/supabase/server'
 import { isGalleryItemData, mapGenerationToGalleryItem } from '@/lib/gallery'
@@ -28,6 +30,8 @@ function isIllustrationStyle(value: string): value is IllustrationStyle {
 export default async function CommunityPage({ searchParams }: CommunityPageProps) {
   const params = await searchParams
   const style = params.style && isIllustrationStyle(params.style) ? params.style : undefined
+  const locale = await getMarketingLocale()
+  const copy = marketingCopy[locale].community
   const supabase = createServerClient()
 
   let query = supabase
@@ -48,10 +52,10 @@ export default async function CommunityPage({ searchParams }: CommunityPageProps
   return (
     <div className="mx-auto flex max-w-7xl flex-col gap-10 px-4 py-12 sm:px-6 lg:px-8 lg:py-20">
       <section className="space-y-4 text-center">
-        <p className="text-sm uppercase tracking-[0.28em] text-muted-foreground">Community gallery</p>
-        <h1 className="text-5xl font-semibold text-foreground">Browse public Folia creations.</h1>
+        <p className="text-sm uppercase tracking-[0.28em] text-muted-foreground">{copy.eyebrow}</p>
+        <h1 className="text-5xl font-semibold text-foreground">{copy.pageTitle}</h1>
         <p className="mx-auto max-w-3xl text-base leading-8 text-muted-foreground">
-          This is the public showcase route for now while `/gallery` stays protected for personal history. Visitors can explore styles and sign up to create their own.
+          {copy.pageBody}
         </p>
       </section>
 
@@ -59,7 +63,7 @@ export default async function CommunityPage({ searchParams }: CommunityPageProps
 
       <section className="flex flex-wrap justify-center gap-2">
         <Link href="/community" className={cn(buttonVariants({ variant: !style ? 'default' : 'outline', size: 'sm' }))}>
-          All styles
+          {copy.allStyles}
         </Link>
         {STYLE_OPTIONS.map((option) => (
           <Link
@@ -74,8 +78,8 @@ export default async function CommunityPage({ searchParams }: CommunityPageProps
 
       {items.length === 0 ? (
         <section className="rounded-[1.8rem] border border-dashed border-border/70 bg-card/70 p-10 text-center">
-          <h2 className="text-3xl font-semibold text-foreground">No public creations yet.</h2>
-          <p className="mt-3 text-sm leading-7 text-muted-foreground">Generated artwork appears here as soon as users opt in from their personal gallery.</p>
+          <h2 className="text-3xl font-semibold text-foreground">{copy.emptyTitle}</h2>
+          <p className="mt-3 text-sm leading-7 text-muted-foreground">{copy.emptyBody}</p>
         </section>
       ) : (
         <section className="columns-1 gap-5 space-y-5 lg:columns-3">
@@ -94,11 +98,11 @@ export default async function CommunityPage({ searchParams }: CommunityPageProps
       )}
 
       <section className="rounded-[1.8rem] border border-border/70 bg-card/90 p-8 text-center shadow-sm shadow-black/5">
-        <h2 className="text-3xl font-semibold text-foreground">Create your own commercial-ready artwork.</h2>
-        <p className="mt-3 text-sm leading-7 text-muted-foreground">Start with clipart elements, then move into invitation mockups as your catalog grows.</p>
+        <h2 className="text-3xl font-semibold text-foreground">{copy.ctaTitle}</h2>
+        <p className="mt-3 text-sm leading-7 text-muted-foreground">{copy.ctaBody}</p>
         <div className="mt-6 flex justify-center gap-3">
-          <Link href="/sign-up" className={cn(buttonVariants({ size: 'lg' }))}>Create account</Link>
-          <Link href="/pricing" className={cn(buttonVariants({ variant: 'outline', size: 'lg' }))}>View pricing</Link>
+          <Link href="/sign-up" className={cn(buttonVariants({ size: 'lg' }))}>{copy.ctaPrimary}</Link>
+          <Link href="/pricing" className={cn(buttonVariants({ variant: 'outline', size: 'lg' }))}>{copy.ctaSecondary}</Link>
         </div>
       </section>
     </div>
