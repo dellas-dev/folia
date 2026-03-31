@@ -49,38 +49,38 @@
 }
 
 :root {
-  --background: oklch(0.985 0.01 85);
-  --foreground: oklch(0.27 0.03 48);
-  --card: oklch(0.996 0.006 84);
-  --card-foreground: oklch(0.27 0.03 48);
-  --popover: oklch(0.996 0.006 84);
-  --popover-foreground: oklch(0.27 0.03 48);
-  --primary: oklch(0.49 0.09 151);
-  --primary-foreground: oklch(0.99 0.004 84);
-  --secondary: oklch(0.95 0.02 78);
-  --secondary-foreground: oklch(0.3 0.03 48);
-  --muted: oklch(0.95 0.02 78);
-  --muted-foreground: oklch(0.52 0.03 52);
-  --accent: oklch(0.93 0.03 145);
-  --accent-foreground: oklch(0.29 0.04 146);
+  --background: #faf7f2;
+  --foreground: #2c2c2a;
+  --card: #fffdf9;
+  --card-foreground: #2c2c2a;
+  --popover: #fffdf9;
+  --popover-foreground: #2c2c2a;
+  --primary: #5c9060;
+  --primary-foreground: #faf7f2;
+  --secondary: #f1efe8;
+  --secondary-foreground: #2c2c2a;
+  --muted: #f1efe8;
+  --muted-foreground: #6f6d67;
+  --accent: #e7dfcf;
+  --accent-foreground: #37563b;
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.9 0.02 78);
-  --input: oklch(0.9 0.02 78);
-  --ring: oklch(0.7 0.06 150);
-  --chart-1: oklch(0.72 0.12 150);
-  --chart-2: oklch(0.68 0.11 70);
-  --chart-3: oklch(0.63 0.1 30);
-  --chart-4: oklch(0.56 0.08 170);
-  --chart-5: oklch(0.48 0.05 52);
+  --border: #ded7ca;
+  --input: #ded7ca;
+  --ring: #5c9060;
+  --chart-1: #5c9060;
+  --chart-2: #d4a843;
+  --chart-3: #e34a73;
+  --chart-4: #98b4a3;
+  --chart-5: #8b6e57;
   --radius: 0.625rem;
-  --sidebar: oklch(0.972 0.015 82);
-  --sidebar-foreground: oklch(0.27 0.03 48);
-  --sidebar-primary: oklch(0.49 0.09 151);
-  --sidebar-primary-foreground: oklch(0.99 0.004 84);
-  --sidebar-accent: oklch(0.93 0.03 145);
-  --sidebar-accent-foreground: oklch(0.29 0.04 146);
-  --sidebar-border: oklch(0.9 0.02 78);
-  --sidebar-ring: oklch(0.7 0.06 150);
+  --sidebar: #f7f3ec;
+  --sidebar-foreground: #2c2c2a;
+  --sidebar-primary: #5c9060;
+  --sidebar-primary-foreground: #faf7f2;
+  --sidebar-accent: #ebe5d7;
+  --sidebar-accent-foreground: #37563b;
+  --sidebar-border: #ded7ca;
+  --sidebar-ring: #5c9060;
 }
 
 .dark {
@@ -124,8 +124,9 @@
   body {
     @apply bg-background text-foreground;
     background-image:
-      radial-gradient(circle at top, oklch(0.97 0.04 86), transparent 42%),
-      linear-gradient(180deg, oklch(0.99 0.006 84), oklch(0.975 0.012 84));
+      radial-gradient(circle at top, rgba(92, 144, 96, 0.12), transparent 36%),
+      radial-gradient(circle at 85% 8%, rgba(212, 168, 67, 0.08), transparent 24%),
+      linear-gradient(180deg, #fdfaf5, #faf7f2);
     min-height: 100vh;
   }
   html {

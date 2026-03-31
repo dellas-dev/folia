@@ -1,3 +1,5 @@
+import { FoliaLogo } from '@/components/brand/folia-logo'
+
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden px-4 py-12">
@@ -6,7 +8,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
       <div className="relative w-full max-w-5xl rounded-[2rem] border border-border/60 bg-background/85 p-5 shadow-xl shadow-black/5 backdrop-blur xl:grid xl:grid-cols-[1.1fr_0.9fr] xl:gap-6 xl:p-6">
         <div className="hidden rounded-[1.6rem] bg-[linear-gradient(145deg,oklch(0.97_0.04_85),oklch(0.93_0.06_145))] p-10 text-foreground xl:flex xl:flex-col xl:justify-between">
           <div className="space-y-4">
-            <p className="text-sm uppercase tracking-[0.3em] text-foreground/70">Folia</p>
+            <FoliaLogo markClassName="size-12 rounded-2xl" />
             <h1 className="max-w-md text-5xl font-semibold leading-none">The clean SaaS shell for your future clipart workflow.</h1>
             <p className="max-w-md text-base leading-7 text-foreground/75">
               Sign in to reach your protected dashboard, credits overview, and the app structure that later phases build on.

@@ -1,0 +1,27 @@
+<svg width="860" height="240" viewBox="0 0 860 240" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="860" height="240" rx="28" fill="#FAF7F2"/>
+  <g transform="translate(36 20)">
+    <path d="M92 16C123.2 35.1 139 64.1 139 92.8C139 122.1 122.2 151.7 92 169.7C61.8 151.7 45 122.1 45 92.8C45 64.1 60.8 35.1 92 16Z" fill="url(#paint0_linear)" stroke="#4A6F4D" stroke-width="4"/>
+    <path d="M92 25V161" stroke="#4A6F4D" stroke-width="3" stroke-linecap="round"/>
+    <path d="M92 85L54 108" stroke="#4A6F4D" stroke-width="2.6" stroke-linecap="round"/>
+    <path d="M92 85L130 108" stroke="#4A6F4D" stroke-width="2.6" stroke-linecap="round"/>
+    <path d="M92 54L66 72" stroke="#6C8D6F" stroke-width="1.9" stroke-linecap="round" opacity="0.95"/>
+    <path d="M92 54L118 72" stroke="#6C8D6F" stroke-width="1.9" stroke-linecap="round" opacity="0.95"/>
+    <path d="M92 121L66 136" stroke="#6C8D6F" stroke-width="1.9" stroke-linecap="round" opacity="0.95"/>
+    <path d="M92 121L118 136" stroke="#6C8D6F" stroke-width="1.9" stroke-linecap="round" opacity="0.95"/>
+    <path d="M92 63C99.2 69.6 103 75.1 103 83.1C95.1 83.1 90.2 87.5 87.1 94.5C79.2 89.6 74 83.9 74 75.9C74 68 80.4 63.6 92 63Z" fill="#C7D9AC" opacity="0.74"/>
+    <path d="M92 75L96 84L105 88L96 92L92 101L88 92L79 88L88 84L92 75Z" fill="#F1E07C"/>
+    <circle cx="107" cy="74" r="3.2" fill="#FAF7F2" opacity="0.92"/>
+    <path d="M30 112L24 118" stroke="#4A6F4D" stroke-width="2.2" stroke-linecap="round" opacity="0.75"/>
+    <path d="M154 112L160 118" stroke="#4A6F4D" stroke-width="2.2" stroke-linecap="round" opacity="0.75"/>
+  </g>
+  <text x="212" y="135" fill="#2C2C2A" font-family="Georgia, 'Times New Roman', serif" font-size="118" letter-spacing="-3">folia</text>
+  <text x="214" y="187" fill="#7C7A73" font-family="Arial, Helvetica, sans-serif" font-size="30" letter-spacing="2.5">AI CLIPART GENERATOR</text>
+  <defs>
+    <linearGradient id="paint0_linear" x1="92" y1="16" x2="92" y2="170" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#BCD2B3"/>
+      <stop offset="0.48" stop-color="#7DA07E"/>
+      <stop offset="1" stop-color="#5C9060"/>
+    </linearGradient>
+  </defs>
+</svg>

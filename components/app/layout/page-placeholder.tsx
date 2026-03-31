@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { Clock3, Sparkles } from 'lucide-react'
+import { Sparkles } from 'lucide-react'
 
 import { buttonVariants } from '@/components/ui/button-variants'
 import { cn } from '@/lib/utils'
@@ -7,15 +7,15 @@ import { cn } from '@/lib/utils'
 type PagePlaceholderProps = {
   eyebrow: string
   title: string
-  description: string
-  phaseLabel?: string
+  subtitle: string
+  body: string
 }
 
 export function PagePlaceholder({
   eyebrow,
   title,
-  description,
-  phaseLabel,
+  subtitle,
+  body,
 }: PagePlaceholderProps) {
   return (
     <section className="rounded-3xl border border-border/70 bg-card/90 p-8 shadow-sm shadow-black/5">
@@ -25,16 +25,11 @@ export function PagePlaceholder({
             <Sparkles className="size-4" />
             {eyebrow}
           </span>
-          {phaseLabel ? (
-            <span className="inline-flex items-center gap-2 rounded-full border border-border/70 px-3 py-1">
-              <Clock3 className="size-4" />
-              {phaseLabel}
-            </span>
-          ) : null}
         </div>
         <div className="space-y-3">
           <h1 className="text-4xl font-semibold tracking-tight text-foreground sm:text-5xl">{title}</h1>
-          <p className="max-w-xl text-base leading-7 text-muted-foreground sm:text-lg">{description}</p>
+          <p className="max-w-xl text-base leading-7 text-muted-foreground sm:text-lg">{subtitle}</p>
+          <p className="max-w-xl text-sm leading-7 text-muted-foreground">{body}</p>
         </div>
         <div className="flex flex-wrap gap-3">
           <Link href="/dashboard" className={cn(buttonVariants({ size: 'lg' }))}>

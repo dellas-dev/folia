@@ -299,7 +299,7 @@ export function MockupForm({ tier, startingCredits, initialInvitationKey, initia
           </div>
         </div>
 
-        {/* Gemini info banner — shown when AUTO + invitation uploaded */}
+        {/* AI analysis banner — shown when AUTO + invitation uploaded */}
         {isAutoMode && invitationKey ? (
           <div className="flex items-start gap-3 rounded-2xl border border-emerald-500/25 bg-emerald-50/50 px-4 py-3 dark:bg-emerald-950/20">
             <Sparkles className="mt-0.5 size-4 shrink-0 text-emerald-600 dark:text-emerald-400" />

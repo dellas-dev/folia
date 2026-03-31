@@ -1,7 +1,7 @@
 'use client'
 
-import type { IllustrationStyle, StyleOption } from '@/types'
 import { cn } from '@/lib/utils'
+import type { IllustrationStyle, StyleOption } from '@/types'
 
 type StyleSelectorProps = {
   options: StyleOption[]
@@ -11,33 +11,53 @@ type StyleSelectorProps = {
 
 export function StyleSelector({ options, value, onChange }: StyleSelectorProps) {
   return (
-    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+    <div className="overflow-x-auto">
+      <div className="flex gap-2 pb-1 md:grid md:grid-cols-5">
       {options.map((option) => {
-        const isActive = option.id === value
-
         return (
           <button
             key={option.id}
             type="button"
             onClick={() => onChange(option.id)}
             className={cn(
-              'rounded-[1.6rem] border p-4 text-left transition-all',
-              isActive
-                ? 'border-primary bg-primary/8 shadow-sm shadow-primary/10'
-                : 'border-border/70 bg-card hover:border-primary/40 hover:bg-accent/50'
+              'relative flex w-[120px] shrink-0 flex-col overflow-hidden rounded-2xl border text-left transition-all md:w-auto',
+              value === option.id
+                ? 'border-[#D4A843] bg-[#D4A843]/5 shadow-sm'
+                : 'border-border/60 bg-card hover:border-border'
             )}
           >
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-2xl">{option.emoji}</span>
-              <span className="rounded-full bg-background/80 px-2 py-1 text-[11px] uppercase tracking-[0.2em] text-muted-foreground">
-                Style
-              </span>
+            <div className="relative h-20 w-full overflow-hidden bg-muted/40">
+              <img
+                src={option.sampleImage}
+                alt={option.label}
+                className="h-full w-full object-cover"
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none'
+                }}
+              />
+              <div className="absolute inset-0 flex items-center justify-center text-2xl opacity-40">
+                {option.icon}
+              </div>
+
+              {value === option.id && (
+                <span className="absolute right-2 top-2 rounded-full bg-[#D4A843] px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-[#2C2C2A]">
+                  Active
+                </span>
+              )}
             </div>
-            <h3 className="mt-5 text-xl font-semibold text-foreground">{option.label}</h3>
-            <p className="mt-2 text-sm leading-6 text-muted-foreground">Best for {option.bestFor.toLowerCase()}.</p>
+
+            <div className="p-2.5">
+              <p className="text-xs leading-tight font-semibold text-foreground">
+                {option.label}
+              </p>
+              <p className="mt-0.5 text-[10px] leading-tight text-muted-foreground">
+                {option.description}
+              </p>
+            </div>
           </button>
         )
       })}
+      </div>
     </div>
   )
 }
