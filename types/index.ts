@@ -23,6 +23,7 @@ export interface GenerationResult {
   r2_key: string
   signed_url: string
   index: number
+  format?: 'png' | 'jpg' | 'webp'
 }
 
 export interface StyleOption {

@@ -1,7 +1,8 @@
 import { getCurrentProfile } from '@/lib/clerk/auth'
 import { generateMockupImage } from '@/lib/fal/mockups'
+import { analyzeInvitationForMockup } from '@/lib/gemini/enhancer'
 import { getPlanForTier } from '@/lib/plans'
-import { buildGenerationR2Key, getSignedR2Url, uploadToR2 } from '@/lib/r2/client'
+import { buildGenerationR2Key, getSignedR2Url, isOwnedR2Key, uploadToR2 } from '@/lib/r2/client'
 import { createServerClient } from '@/lib/supabase/server'
 import { enforceGenerationRateLimit } from '@/lib/upstash/ratelimit'
 import type { Database } from '@/types/database.types'
@@ -47,12 +48,12 @@ export async function POST(request: Request) {
     return Response.json({ error: 'invitation_r2_key is required' }, { status: 422 })
   }
 
-  const customPrompt = body.custom_prompt?.trim()
-  const scenePreset = body.scene_preset
-
-  if (!scenePreset && !customPrompt) {
-    return Response.json({ error: 'scene_preset or custom_prompt is required' }, { status: 422 })
+  if (!isOwnedR2Key(user.id, body.invitation_r2_key, ['uploads', 'generations'])) {
+    return Response.json({ error: 'Forbidden' }, { status: 403 })
   }
+
+  const scenePreset = body.scene_preset
+  const customPrompt = body.custom_prompt?.trim()
 
   if (scenePreset && !isScenePreset(scenePreset)) {
     return Response.json({ error: 'Invalid scene preset' }, { status: 422 })
@@ -60,17 +61,46 @@ export async function POST(request: Request) {
 
   const plan = getPlanForTier(profile.tier)
 
-  if (customPrompt && !plan.custom_scene) {
-    return Response.json({ error: 'Custom scene prompts require Pro or Business.' }, { status: 403 })
-  }
-
   try {
-    const invitationImageUrl = await getSignedR2Url(body.invitation_r2_key, 300)
-    const prompt = customPrompt ?? MOCKUP_SCENE_PROMPTS[scenePreset as MockupScenePreset]
-    const generationStartedAt = Date.now()
-    const image = await generateMockupImage({ prompt, invitationImageUrl })
-    const generationId = crypto.randomUUID()
+    const invitationSignedUrl = await getSignedR2Url(body.invitation_r2_key, 300)
 
+    let finalScenePrompt: string
+    let geminiUsed = false
+
+    if (scenePreset) {
+      // Preset mode — use preset prompt directly, Gemini skipped
+      finalScenePrompt = MOCKUP_SCENE_PROMPTS[scenePreset]
+    } else {
+      // AUTO mode — Gemini reads invitation and generates matching scene
+      const imageResponse = await fetch(invitationSignedUrl)
+
+      if (!imageResponse.ok) {
+        throw new Error('Failed to load invitation image for analysis.')
+      }
+
+      const invitationBase64 = Buffer.from(await imageResponse.arrayBuffer()).toString('base64')
+      const invitationMimeType = imageResponse.headers.get('content-type') || 'image/png'
+
+      finalScenePrompt = await analyzeInvitationForMockup(
+        invitationBase64,
+        invitationMimeType,
+        customPrompt
+      )
+      geminiUsed = true
+    }
+
+    console.log('=== FINAL SCENE PROMPT ===')
+    console.log('Mode:', scenePreset ? `preset:${scenePreset}` : 'auto (Gemini)')
+    console.log(finalScenePrompt)
+    console.log('==========================')
+
+    const generationStartedAt = Date.now()
+    const image = await generateMockupImage({
+      prompt: finalScenePrompt,
+      invitationImageUrl: invitationSignedUrl,
+    })
+
+    const generationId = crypto.randomUUID()
     const imageResponse = await fetch(image.url)
 
     if (!imageResponse.ok) {
@@ -91,7 +121,7 @@ export async function POST(request: Request) {
       type: 'mockup',
       style: null,
       prompt_raw: null,
-      prompt_enhanced: prompt,
+      prompt_enhanced: finalScenePrompt,
       reference_image_r2_key: null,
       invitation_r2_key: body.invitation_r2_key,
       scene_preset: scenePreset ?? null,
@@ -99,7 +129,7 @@ export async function POST(request: Request) {
       result_r2_keys: [r2Key],
       result_count: 1,
       model_used: 'fal-ai/flux-pro/kontext',
-      gemini_used: false,
+      gemini_used: geminiUsed,
       generation_time_ms: Date.now() - generationStartedAt,
       resolution: plan.resolution,
       is_public: false,
@@ -109,9 +139,7 @@ export async function POST(request: Request) {
 
     const { error: generationError } = await supabase.from('generations').insert(generationInsert)
 
-    if (generationError) {
-      throw generationError
-    }
+    if (generationError) throw generationError
 
     const creditsRemaining = profile.credits - 1
     const { error: profileError } = await supabase
@@ -119,9 +147,7 @@ export async function POST(request: Request) {
       .update({ credits: creditsRemaining })
       .eq('clerk_user_id', user.id)
 
-    if (profileError) {
-      throw profileError
-    }
+    if (profileError) throw profileError
 
     return Response.json({
       generation_id: generationId,
@@ -129,9 +155,11 @@ export async function POST(request: Request) {
         r2_key: r2Key,
         signed_url: signedUrl,
       },
+      scene_prompt_used: finalScenePrompt,
       credits_remaining: creditsRemaining,
     })
   } catch (error) {
+    console.error('[generate/mockup]', error)
     const message = error instanceof Error ? error.message : 'Mockup generation failed. Please try again.'
 
     return Response.json({ error: message }, { status: 500 })
