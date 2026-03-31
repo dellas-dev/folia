@@ -11,6 +11,7 @@ import { StyleSelector } from '@/components/app/generators/style-selector'
 import { VariationPicker } from '@/components/app/generators/variation-picker'
 import { buttonVariants } from '@/components/ui/button'
 import { useToast } from '@/components/ui/toast-provider'
+import { trackClientEvent } from '@/lib/analytics/client'
 import { cn } from '@/lib/utils'
 import { STYLE_OPTIONS, type GenerationResult, type UserTier } from '@/types'
 
@@ -121,6 +122,12 @@ export function ElementForm({ tier, startingCredits }: ElementFormProps) {
       setResults(data.results)
       setPromptEnhanced(data.prompt_enhanced)
       setCredits(data.credits_remaining)
+      trackClientEvent('generation_created', {
+        generation_type: 'element',
+        style,
+        result_count: data.results.length,
+        used_reference_image: Boolean(referenceImageKey),
+      })
       toast({
         tone: 'success',
         title: 'Generation completed',

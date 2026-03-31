@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Check, Copy } from 'lucide-react'
 
 import { buttonVariants } from '@/components/ui/button-variants'
+import { trackClientEvent } from '@/lib/analytics/client'
 import { cn } from '@/lib/utils'
 
 type ReferralLinkBoxProps = {
@@ -16,6 +17,10 @@ export function ReferralLinkBox({ code, referralUrl }: ReferralLinkBoxProps) {
 
   async function handleCopy() {
     await navigator.clipboard.writeText(referralUrl)
+    trackClientEvent('referral_shared', {
+      code,
+      destination: 'clipboard',
+    })
     setCopied(true)
     window.setTimeout(() => setCopied(false), 2000)
   }

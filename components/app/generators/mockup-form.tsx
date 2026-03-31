@@ -7,6 +7,7 @@ import { AlertCircle, AlertTriangle, CreditCard, LoaderCircle, Lock, Sparkles, U
 
 import { buttonVariants } from '@/components/ui/button'
 import { useToast } from '@/components/ui/toast-provider'
+import { trackClientEvent } from '@/lib/analytics/client'
 import { cn } from '@/lib/utils'
 import { MOCKUP_SCENE_OPTIONS, type MockupScenePreset, type UserTier } from '@/types'
 
@@ -146,6 +147,10 @@ export function MockupForm({ tier, startingCredits, initialInvitationKey, initia
 
       setResultUrl(data.result.signed_url)
       setCredits(data.credits_remaining)
+      trackClientEvent('generation_created', {
+        generation_type: 'mockup',
+        scene_mode: scenePreset ?? 'auto',
+      })
       toast({
         tone: 'success',
         title: 'Mockup generated',

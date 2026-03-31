@@ -1,4 +1,5 @@
 import { getAffiliateRewardForPlan, normalizeAffiliateCode } from '@/lib/affiliate'
+import { trackServerEvent } from '@/lib/analytics/server'
 import { createServerClient } from '@/lib/supabase/server'
 import { PLANS } from '@/lib/plans'
 import type { Database } from '@/types/database.types'
@@ -191,6 +192,14 @@ export async function applyPaymentToProfile(input: ApplyPaymentInput) {
   } catch (error) {
     console.error('Failed to award affiliate credits:', error)
   }
+
+  await trackServerEvent('purchase_completed', {
+    provider: input.provider,
+    plan: input.plan,
+    currency: input.currency,
+    credits_added: creditsAdded,
+    is_subscription: isSubscription,
+  })
 
   return {
     profile,

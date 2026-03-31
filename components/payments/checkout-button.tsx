@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { LoaderCircle } from 'lucide-react'
 
 import { buttonVariants } from '@/components/ui/button'
+import { trackClientEvent } from '@/lib/analytics/client'
 import { cn } from '@/lib/utils'
 
 type CheckoutButtonProps = {
@@ -24,6 +25,11 @@ export function CheckoutButton({ plan, currency, children, className }: Checkout
         setLoading(true)
 
         try {
+          trackClientEvent('upgrade_clicked', {
+            plan,
+            currency,
+          })
+
           const response = await fetch('/api/payments/checkout', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
