@@ -1,3 +1,4 @@
+import type { Metadata } from 'next'
 import Link from 'next/link'
 
 import { GenerationCounter } from '@/components/marketing/generation-counter'
@@ -12,6 +13,12 @@ type CommunityPageProps = {
   searchParams: Promise<{
     style?: string
   }>
+}
+
+export const metadata: Metadata = {
+  title: 'Community Gallery | Folia',
+  description:
+    'Browse public Folia creations across watercolor, line art, cartoon, boho, and minimalist styles.',
 }
 
 function isIllustrationStyle(value: string): value is IllustrationStyle {

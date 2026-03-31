@@ -1,3 +1,4 @@
+import type { Metadata } from 'next'
 import Link from 'next/link'
 import { auth } from '@clerk/nextjs/server'
 
@@ -21,6 +22,12 @@ const featureRows = [
   ['Variations per run', '1', 'Up to 4', 'Up to 4'],
   ['Affiliate access', 'No', 'Yes', 'Yes'],
 ] as const
+
+export const metadata: Metadata = {
+  title: 'Pricing | Folia',
+  description:
+    'Compare Folia plans for clipart generation, mockup creation, affiliate access, and paid checkout in IDR or USD.',
+}
 
 type PricingPageProps = {
   searchParams: Promise<{ currency?: 'IDR' | 'USD' }>
