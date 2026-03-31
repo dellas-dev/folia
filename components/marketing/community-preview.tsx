@@ -4,18 +4,20 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { ArrowRight } from 'lucide-react'
 
+import { marketingCopy, type MarketingLocale } from '@/lib/marketing/copy'
 import { STYLE_OPTIONS } from '@/types'
 
-export function CommunityPreview() {
+export function CommunityPreview({ locale }: { locale: MarketingLocale }) {
+  const copy = marketingCopy[locale].community
   return (
     <section className="rounded-[2rem] border border-border/70 bg-card/90 p-8 shadow-sm shadow-black/5">
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
-          <p className="text-sm uppercase tracking-[0.28em] text-muted-foreground">Community</p>
-          <h2 className="mt-2 text-4xl font-semibold text-foreground">Preview what creators are already making.</h2>
+          <p className="text-sm uppercase tracking-[0.28em] text-muted-foreground">{copy.eyebrow}</p>
+          <h2 className="mt-2 text-4xl font-semibold text-foreground">{copy.title}</h2>
         </div>
         <Link href="/community" className="inline-flex items-center gap-2 text-sm font-medium text-primary">
-          Open community gallery
+          {copy.link}
           <ArrowRight className="size-4" />
         </Link>
       </div>
@@ -28,7 +30,7 @@ export function CommunityPreview() {
             <div className="p-5">
               <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">{style.label}</p>
               <p className="mt-3 text-sm leading-7 text-muted-foreground">
-                Explore public generations in this style and see how different shops approach occasions, bundles, and listing visuals.
+                {copy.body}
               </p>
             </div>
           </article>

@@ -9,6 +9,7 @@ import { MarketingFooter } from '@/components/marketing/footer'
 import { OccasionGallery } from '@/components/marketing/occasion-gallery'
 import { PricingCards } from '@/components/marketing/pricing-cards'
 import { StyleShowcase } from '@/components/marketing/style-showcase'
+import { getMarketingLocale } from '@/lib/marketing/locale'
 
 export const metadata: Metadata = {
   title: 'Folia | AI Clipart and Mockups for Etsy Sellers',
@@ -17,20 +18,28 @@ export const metadata: Metadata = {
 }
 
 export default function MarketingHomePage() {
+  const localePromise = getMarketingLocale()
+
+  return <MarketingHomePageInner localePromise={localePromise} />
+}
+
+async function MarketingHomePageInner({ localePromise }: { localePromise: ReturnType<typeof getMarketingLocale> }) {
+  const locale = await localePromise
+
   return (
     <div className="mx-auto flex max-w-7xl flex-col gap-16 px-4 py-12 sm:px-6 lg:px-8 lg:py-20">
-      <Hero />
+      <Hero locale={locale} />
 
       <GenerationCounter />
 
-      <HowItWorks />
-      <StyleShowcase />
-      <OccasionGallery />
-      <PricingCards />
-      <CommunityPreview />
+      <HowItWorks locale={locale} />
+      <StyleShowcase locale={locale} />
+      <OccasionGallery locale={locale} />
+      <PricingCards locale={locale} />
+      <CommunityPreview locale={locale} />
 
-      <Faq />
-      <MarketingFooter />
+      <Faq locale={locale} />
+      <MarketingFooter locale={locale} />
     </div>
   )
 }

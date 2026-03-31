@@ -4,18 +4,20 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { ArrowRight } from 'lucide-react'
 
+import { marketingCopy, type MarketingLocale } from '@/lib/marketing/copy'
 import { STYLE_OPTIONS } from '@/types'
 
-export function StyleShowcase() {
+export function StyleShowcase({ locale }: { locale: MarketingLocale }) {
+  const copy = marketingCopy[locale].style
   return (
     <section className="rounded-[2rem] border border-border/70 bg-card/90 p-8 shadow-sm shadow-black/5">
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
-          <p className="text-sm uppercase tracking-[0.28em] text-muted-foreground">Styles</p>
-          <h2 className="mt-2 text-4xl font-semibold text-foreground">Switch visual directions without changing tools.</h2>
+          <p className="text-sm uppercase tracking-[0.28em] text-muted-foreground">{copy.eyebrow}</p>
+          <h2 className="mt-2 text-4xl font-semibold text-foreground">{copy.title}</h2>
         </div>
         <Link href="/community" className="inline-flex items-center gap-2 text-sm font-medium text-primary">
-          Browse public examples
+          {copy.link}
           <ArrowRight className="size-4" />
         </Link>
       </div>

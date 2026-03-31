@@ -2,6 +2,8 @@
 
 import { Images, Layers3, WandSparkles } from 'lucide-react'
 
+import { marketingCopy, type MarketingLocale } from '@/lib/marketing/copy'
+
 const steps = [
   {
     title: 'Pick a style',
@@ -20,14 +22,15 @@ const steps = [
   },
 ] as const
 
-export function HowItWorks() {
+export function HowItWorks({ locale }: { locale: MarketingLocale }) {
+  const copy = marketingCopy[locale].howItWorks
   return (
     <section className="grid gap-5 lg:grid-cols-3">
-      {steps.map((step) => (
+      {steps.map((step, index) => (
         <article key={step.title} className="rounded-[1.8rem] border border-border/70 bg-card/90 p-6 shadow-sm shadow-black/5">
           <step.icon className="size-5 text-primary" />
-          <h2 className="mt-4 text-2xl font-semibold text-foreground">{step.title}</h2>
-          <p className="mt-3 text-sm leading-7 text-muted-foreground">{step.body}</p>
+          <h2 className="mt-4 text-2xl font-semibold text-foreground">{copy.steps[index].title}</h2>
+          <p className="mt-3 text-sm leading-7 text-muted-foreground">{copy.steps[index].body}</p>
         </article>
       ))}
     </section>
