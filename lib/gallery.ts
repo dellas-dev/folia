@@ -10,6 +10,7 @@ export type GalleryItemData = {
   id: string
   type: GenerationType
   style: IllustrationStyle | null
+  prompt_raw: string | null
   created_at: string
   signed_url: string
   result_r2_key: string
@@ -28,6 +29,7 @@ export async function mapGenerationToGalleryItem(generation: GenerationRow): Pro
     id: generation.id,
     type: generation.type,
     style: generation.style,
+    prompt_raw: generation.prompt_raw,
     created_at: generation.created_at,
     signed_url: await getSignedR2Url(resultKey),
     result_r2_key: resultKey,

@@ -19,9 +19,11 @@ type PromptInputProps = {
   value: string
   onChange: (value: string) => void
   suggestedPrompt?: string
+  promptHistory?: string[]
+  onSelectHistory?: (value: string) => void
 }
 
-export function PromptInput({ value, onChange, suggestedPrompt }: PromptInputProps) {
+export function PromptInput({ value, onChange, suggestedPrompt, promptHistory = [], onSelectHistory }: PromptInputProps) {
   const [placeholderIndex, setPlaceholderIndex] = useState(0)
   const [wasAutoFilled, setWasAutoFilled] = useState(false)
   const prevSuggestedRef = useRef<string | undefined>(undefined)
@@ -72,6 +74,24 @@ export function PromptInput({ value, onChange, suggestedPrompt }: PromptInputPro
         rows={6}
         className="w-full rounded-[1.4rem] border border-input bg-background px-4 py-3 text-sm outline-none transition-colors placeholder:text-muted-foreground/70 focus:border-primary focus:ring-3 focus:ring-primary/15"
       />
+      {promptHistory.length > 0 ? (
+        <div className="space-y-2">
+          <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">Recent prompts</p>
+          <div className="flex flex-wrap gap-2">
+            {promptHistory.map((historyPrompt) => (
+              <button
+                key={historyPrompt}
+                type="button"
+                onClick={() => onSelectHistory?.(historyPrompt)}
+                className="max-w-full rounded-full border border-border/70 bg-background px-3 py-1.5 text-left text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                title={historyPrompt}
+              >
+                <span className="block max-w-[240px] truncate sm:max-w-[320px]">{historyPrompt}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
       {wasAutoFilled ? (
         <p className="text-[11px] text-muted-foreground/70">
           ✨ Auto-described from your reference — edit freely

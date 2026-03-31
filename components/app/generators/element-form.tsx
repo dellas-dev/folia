@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { AlertCircle, AlertTriangle, ChevronDown, ChevronUp, LoaderCircle, Sparkles, Upload } from 'lucide-react'
 
@@ -13,11 +13,13 @@ import { buttonVariants } from '@/components/ui/button'
 import { useToast } from '@/components/ui/toast-provider'
 import { trackClientEvent } from '@/lib/analytics/client'
 import { cn } from '@/lib/utils'
-import { STYLE_OPTIONS, type GenerationResult, type UserTier } from '@/types'
+import { STYLE_OPTIONS, type GenerationResult, type IllustrationStyle, type UserTier } from '@/types'
 
 type ElementFormProps = {
   tier: UserTier
   startingCredits: number
+  initialPrompt?: string
+  initialStyle?: IllustrationStyle
 }
 
 type GenerateElementsResponse = {
@@ -34,10 +36,12 @@ const maxVariationsByTier: Record<UserTier, number> = {
   business: 4,
 }
 
-export function ElementForm({ tier, startingCredits }: ElementFormProps) {
+const PROMPT_HISTORY_STORAGE_KEY = 'folia:element-prompt-history'
+
+export function ElementForm({ tier, startingCredits, initialPrompt = '', initialStyle }: ElementFormProps) {
   const { toast } = useToast()
-  const [style, setStyle] = useState(STYLE_OPTIONS[0].id)
-  const [prompt, setPrompt] = useState('')
+  const [style, setStyle] = useState(initialStyle ?? STYLE_OPTIONS[0].id)
+  const [prompt, setPrompt] = useState(initialPrompt)
   const [numVariations, setNumVariations] = useState<1 | 2 | 3 | 4>(1)
   const [referenceImageKey, setReferenceImageKey] = useState<string | null>(null)
   const [referenceFileName, setReferenceFileName] = useState<string | null>(null)
@@ -52,9 +56,42 @@ export function ElementForm({ tier, startingCredits }: ElementFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [promptPreviewOpen, setPromptPreviewOpen] = useState(false)
   const [refOpen, setRefOpen] = useState(false)
+  const [promptHistory, setPromptHistory] = useState<string[]>([])
 
   const maxVariations = maxVariationsByTier[tier]
   const referenceLocked = tier === 'none' || tier === 'starter'
+
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(PROMPT_HISTORY_STORAGE_KEY)
+
+      if (!saved) {
+        return
+      }
+
+      const parsed = JSON.parse(saved) as unknown
+
+      if (Array.isArray(parsed)) {
+        setPromptHistory(parsed.filter((item): item is string => typeof item === 'string').slice(0, 5))
+      }
+    } catch {
+      window.localStorage.removeItem(PROMPT_HISTORY_STORAGE_KEY)
+    }
+  }, [])
+
+  function savePromptToHistory(rawPrompt: string) {
+    const trimmedPrompt = rawPrompt.trim()
+
+    if (!trimmedPrompt) {
+      return
+    }
+
+    setPromptHistory((current) => {
+      const next = [trimmedPrompt, ...current.filter((item) => item !== trimmedPrompt)].slice(0, 5)
+      window.localStorage.setItem(PROMPT_HISTORY_STORAGE_KEY, JSON.stringify(next))
+      return next
+    })
+  }
 
   // Returns r2_key on success, null on failure
   async function uploadReferenceImage(file: File): Promise<string | null> {
@@ -122,6 +159,7 @@ export function ElementForm({ tier, startingCredits }: ElementFormProps) {
       setResults(data.results)
       setPromptEnhanced(data.prompt_enhanced)
       setCredits(data.credits_remaining)
+      savePromptToHistory(prompt)
       trackClientEvent('generation_created', {
         generation_type: 'element',
         style,
@@ -164,7 +202,13 @@ export function ElementForm({ tier, startingCredits }: ElementFormProps) {
         </div>
 
         <StyleSelector options={STYLE_OPTIONS} value={style} onChange={setStyle} />
-        <PromptInput value={prompt} onChange={setPrompt} suggestedPrompt={suggestedPrompt} />
+        <PromptInput
+          value={prompt}
+          onChange={setPrompt}
+          suggestedPrompt={suggestedPrompt}
+          promptHistory={promptHistory}
+          onSelectHistory={setPrompt}
+        />
         <VariationPicker value={numVariations} maxVariations={maxVariations} onChange={setNumVariations} />
 
         <div className="flex flex-wrap items-center gap-4">
