@@ -1,5 +1,3 @@
-import { currentUser } from '@clerk/nextjs/server'
-
 import { getCurrentProfile } from '@/lib/clerk/auth'
 import { sendSubscriptionStatusEmail } from '@/lib/email/resend'
 import { createMayarPaymentLink } from '@/lib/payments/mayar'
@@ -11,8 +9,7 @@ type CheckoutBody = {
 }
 
 export async function POST(request: Request) {
-  const user = await currentUser()
-  const { profile } = await getCurrentProfile()
+  const { user, profile } = await getCurrentProfile()
 
   if (!user || !profile) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 })

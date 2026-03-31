@@ -1,3 +1,4 @@
+import { getAffiliateRewardForPlan, normalizeAffiliateCode } from '@/lib/affiliate'
 import { createServerClient } from '@/lib/supabase/server'
 import { PLANS } from '@/lib/plans'
 import type { Database } from '@/types/database.types'
@@ -22,6 +23,22 @@ type ApplyPaymentInput = {
   paymentStatus?: 'pending' | 'success' | 'failed' | 'refunded'
 }
 
+async function getExistingPurchase(paymentId: string, provider: PaymentProvider) {
+  const supabase = createServerClient()
+  const { data, error } = await supabase
+    .from('purchases')
+    .select('*')
+    .eq('payment_id', paymentId)
+    .eq('payment_provider', provider)
+    .maybeSingle()
+
+  if (error) {
+    throw error
+  }
+
+  return data
+}
+
 async function getProfileByIdentity(clerkUserId?: string | null, email?: string | null) {
   const supabase = createServerClient()
 
@@ -36,6 +53,37 @@ async function getProfileByIdentity(clerkUserId?: string | null, email?: string 
   }
 
   return null
+}
+
+async function awardAffiliateCredits({
+  referredProfile,
+  plan,
+}: {
+  referredProfile: Database['public']['Tables']['profiles']['Row']
+  plan: PaymentPlan
+}) {
+  const referredByCode = normalizeAffiliateCode(referredProfile.referred_by_code)
+  const creditsAwarded = getAffiliateRewardForPlan(plan)
+
+  if (!referredByCode || creditsAwarded <= 0) {
+    return null
+  }
+
+  const supabase = createServerClient()
+  const { data, error } = await (supabase as typeof supabase & {
+    rpc: (fn: string, args: Record<string, unknown>) => Promise<{ data: boolean | null; error: { message: string } | null }>
+  }).rpc('award_affiliate_referral', {
+    referred_by_code_input: referredByCode,
+    referred_profile_id_input: referredProfile.id,
+    plan_input: plan,
+    credits_awarded_input: creditsAwarded,
+  })
+
+  if (error) {
+    throw error
+  }
+
+  return data ? { creditsAwarded } : null
 }
 
 export async function recordPaymentEventIfNew(eventId: string, provider: PaymentProvider, type: string) {
@@ -59,6 +107,23 @@ export async function recordPaymentEventIfNew(eventId: string, provider: Payment
 }
 
 export async function applyPaymentToProfile(input: ApplyPaymentInput) {
+  const existingPurchase = await getExistingPurchase(input.paymentId, input.provider)
+
+  if (existingPurchase) {
+    const profile = await getProfileByIdentity(input.clerkUserId, input.email)
+
+    if (!profile) {
+      throw new Error('No matching profile found for payment event.')
+    }
+
+    return {
+      profile,
+      creditsAdded: existingPurchase.credits_added,
+      newCredits: profile.credits,
+      plan: existingPurchase.plan,
+    }
+  }
+
   const profile = await getProfileByIdentity(input.clerkUserId, input.email)
 
   if (!profile) {
@@ -67,7 +132,7 @@ export async function applyPaymentToProfile(input: ApplyPaymentInput) {
 
   const supabase = createServerClient()
   const creditsAdded = PLANS[input.plan].credits
-  const isSubscription = input.plan === 'pro' || input.plan === 'business'
+  const isSubscription = PLANS[input.plan].is_subscription
   const nextTier = input.plan === 'topup' ? profile.tier : input.plan
 
   const profileUpdate: Database['public']['Tables']['profiles']['Update'] = {
@@ -116,6 +181,15 @@ export async function applyPaymentToProfile(input: ApplyPaymentInput) {
 
   if (purchaseError) {
     throw purchaseError
+  }
+
+  try {
+    await awardAffiliateCredits({
+      referredProfile: profile,
+      plan: input.plan,
+    })
+  } catch (error) {
+    console.error('Failed to award affiliate credits:', error)
   }
 
   return {
