@@ -1,6 +1,7 @@
 import { getCurrentProfile } from '@/lib/clerk/auth'
+import { getFalMissingEnv, isFalNetworkError } from '@/lib/fal/client'
 import { generateMockupImage } from '@/lib/fal/mockups'
-import { analyzeInvitationForMockup } from '@/lib/ai/enhancer'
+import { analyzeInvitationForMockup } from '@/lib/gemini/enhancer'
 import { getPlanForTier } from '@/lib/plans'
 import { buildGenerationR2Key, getSignedR2Url, isOwnedR2Key, uploadToR2 } from '@/lib/r2/client'
 import { createServerClient } from '@/lib/supabase/server'
@@ -48,7 +49,7 @@ export async function POST(request: Request) {
     return Response.json({ error: 'invitation_r2_key is required' }, { status: 422 })
   }
 
-  if (!isOwnedR2Key(user.id, body.invitation_r2_key, ['uploads', 'generations'])) {
+  if (!isOwnedR2Key(body.invitation_r2_key, user.id)) {
     return Response.json({ error: 'Forbidden' }, { status: 403 })
   }
 
@@ -60,18 +61,26 @@ export async function POST(request: Request) {
   }
 
   const plan = getPlanForTier(profile.tier)
+  const missingEnv = getFalMissingEnv()
+
+  if (missingEnv.length > 0) {
+    return Response.json(
+      { error: `Mockup generation is not configured. Missing env: ${missingEnv.join(', ')}` },
+      { status: 500 }
+    )
+  }
 
   try {
     const invitationSignedUrl = await getSignedR2Url(body.invitation_r2_key, 300)
 
     let finalScenePrompt: string
-    let aiEnhancedUsed = false
+    let geminiUsed = false
 
     if (scenePreset) {
-      // Preset mode — use preset prompt directly, AI analysis skipped
+      // Preset mode — use preset prompt directly, Gemini skipped
       finalScenePrompt = MOCKUP_SCENE_PROMPTS[scenePreset]
     } else {
-      // AUTO mode — AI reads invitation and generates matching scene
+      // AUTO mode — Gemini reads invitation and generates matching scene
       const imageResponse = await fetch(invitationSignedUrl)
 
       if (!imageResponse.ok) {
@@ -86,13 +95,8 @@ export async function POST(request: Request) {
         invitationMimeType,
         customPrompt
       )
-      aiEnhancedUsed = true
+      geminiUsed = true
     }
-
-    console.log('=== FINAL SCENE PROMPT ===')
-    console.log('Mode:', scenePreset ? `preset:${scenePreset}` : 'auto (AI-assisted)')
-    console.log(finalScenePrompt)
-    console.log('==========================')
 
     const generationStartedAt = Date.now()
     const image = await generateMockupImage({
@@ -129,7 +133,7 @@ export async function POST(request: Request) {
       result_r2_keys: [r2Key],
       result_count: 1,
       model_used: 'fal-ai/flux-pro/kontext',
-      gemini_used: aiEnhancedUsed,
+      gemini_used: geminiUsed,
       generation_time_ms: Date.now() - generationStartedAt,
       resolution: plan.resolution,
       is_public: false,
@@ -160,6 +164,14 @@ export async function POST(request: Request) {
     })
   } catch (error) {
     console.error('[generate/mockup]', error)
+
+    if (isFalNetworkError(error)) {
+      return Response.json(
+        { error: 'Mockup generation service is temporarily unreachable. Please try again in a moment.' },
+        { status: 503 }
+      )
+    }
+
     const message = error instanceof Error ? error.message : 'Mockup generation failed. Please try again.'
 
     return Response.json({ error: message }, { status: 500 })

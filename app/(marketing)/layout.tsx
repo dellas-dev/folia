@@ -4,10 +4,8 @@ import { auth } from '@clerk/nextjs/server'
 
 import { FoliaLogo } from '@/components/brand/folia-logo'
 import { LanguageSwitcher } from '@/components/marketing/language-switcher'
-import { buttonVariants } from '@/components/ui/button-variants'
 import { marketingCopy } from '@/lib/marketing/copy'
 import { getMarketingLocale } from '@/lib/marketing/locale'
-import { cn } from '@/lib/utils'
 
 export default async function MarketingLayout({ children }: { children: React.ReactNode }) {
   const { userId } = await auth()
@@ -16,33 +14,41 @@ export default async function MarketingLayout({ children }: { children: React.Re
 
   return (
     <div className="min-h-screen">
-      <header className="sticky top-0 z-20 border-b border-border/60 bg-background/80 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
-          <Link href="/" className="flex items-center gap-3">
-            <FoliaLogo markClassName="size-10 rounded-2xl" />
-          </Link>
+      <header
+        className="sticky top-0 z-30 border-b border-[rgba(192,200,201,0.15)] px-4 py-4 sm:px-6 lg:px-12"
+        style={{ backgroundColor: 'rgba(249,249,249,0.7)', backdropFilter: 'blur(20px)' }}
+      >
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-8">
+            <Link href="/" className="flex items-center gap-3">
+              <FoliaLogo imageClassName="h-10 sm:h-11" />
+            </Link>
 
-          <nav className="hidden items-center gap-6 text-sm font-medium text-muted-foreground md:flex">
-            <Link href="/community" className="transition-colors hover:text-foreground">{copy.community}</Link>
-            <Link href="/pricing" className="transition-colors hover:text-foreground">{copy.pricing}</Link>
-            <Link href="/sign-in" className="transition-colors hover:text-foreground">{copy.signIn}</Link>
-          </nav>
-
-          <div className="hidden md:block">
-            <LanguageSwitcher locale={locale} />
+            <nav className="hidden items-center gap-8 md:flex">
+              <Link href="/community" className="nav-link-marketing text-sm font-medium">{copy.community}</Link>
+              <Link href="/pricing" className="nav-link-marketing text-sm font-medium">{copy.pricing}</Link>
+              <Link href="/sign-in" className="nav-link-marketing text-sm font-medium">{copy.signIn}</Link>
+            </nav>
           </div>
 
-          <Link
-            href={userId ? '/dashboard' : '/sign-up'}
-            className={cn(buttonVariants({ size: 'lg' }), 'w-full justify-center sm:w-auto')}
-          >
-            {userId ? copy.openDashboard : copy.getStarted}
-          </Link>
+          <div className="hidden items-center gap-4 md:flex">
+            <LanguageSwitcher locale={locale} />
+            <Link
+              href={userId ? '/dashboard' : '/sign-up'}
+              className="inline-flex h-11 items-center justify-center rounded-full px-6 text-sm font-bold text-white transition-opacity hover:opacity-90"
+              style={{ background: 'linear-gradient(135deg, #37656b, #507e84)', boxShadow: '0 4px 14px rgba(55,101,107,0.25)' }}
+            >
+              {userId ? copy.openDashboard : copy.getStarted}
+            </Link>
+          </div>
 
-          <nav className="flex w-full items-center gap-4 overflow-x-auto text-sm font-medium text-muted-foreground md:hidden">
-            <Link href="/community" className="whitespace-nowrap transition-colors hover:text-foreground">{copy.community}</Link>
-            <Link href="/pricing" className="whitespace-nowrap transition-colors hover:text-foreground">{copy.pricing}</Link>
-            <Link href="/sign-in" className="whitespace-nowrap transition-colors hover:text-foreground">{copy.signIn}</Link>
+          <nav
+            className="flex w-full items-center gap-3 overflow-x-auto rounded-full px-4 py-2 text-sm font-medium md:hidden"
+            style={{ backgroundColor: 'rgba(255,255,255,0.92)', color: '#70787a', boxShadow: '0 10px 24px -20px rgba(55,101,107,0.15)' }}
+          >
+            <Link href="/community" className="whitespace-nowrap nav-link-marketing">{copy.community}</Link>
+            <Link href="/pricing" className="whitespace-nowrap nav-link-marketing">{copy.pricing}</Link>
+            <Link href="/sign-in" className="whitespace-nowrap nav-link-marketing">{copy.signIn}</Link>
             <LanguageSwitcher locale={locale} />
           </nav>
         </div>

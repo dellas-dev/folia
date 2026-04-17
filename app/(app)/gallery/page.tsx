@@ -1,12 +1,10 @@
-import Link from 'next/link'
+import { Search } from 'lucide-react'
 
 import { GalleryFilters } from '@/components/app/gallery/gallery-filters'
 import { GalleryGrid } from '@/components/app/gallery/gallery-grid'
 import { requireCurrentProfile } from '@/lib/clerk/auth'
 import { createServerClient } from '@/lib/supabase/server'
 import { isGalleryItemData, isGenerationWithinRetention, mapGenerationToGalleryItem } from '@/lib/gallery'
-import { buttonVariants } from '@/components/ui/button-variants'
-import { cn } from '@/lib/utils'
 import type { IllustrationStyle } from '@/types'
 
 type GalleryPageProps = {
@@ -30,48 +28,89 @@ export default async function GalleryPage({ searchParams }: GalleryPageProps) {
     .order('created_at', { ascending: false })
     .limit(60)
 
-  if (currentType !== 'all') {
-    query = query.eq('type', currentType)
-  }
-
-  if (currentStyle !== 'all') {
-    query = query.eq('style', currentStyle)
-  }
+  if (currentType !== 'all') query = query.eq('type', currentType)
+  if (currentStyle !== 'all') query = query.eq('style', currentStyle)
 
   const { data } = await query
   const retainedRows = (data ?? []).filter((generation) => isGenerationWithinRetention(generation, profile.tier))
   const items = (await Promise.all(retainedRows.map(mapGenerationToGalleryItem))).filter(isGalleryItemData)
 
-  const isFiltered = currentType !== 'all' || currentStyle !== 'all'
+  const elementCount = items.filter((i) => i.type === 'element').length
+  const mockupCount  = items.filter((i) => i.type === 'mockup').length
 
   return (
-    <div className="grid gap-6">
-      <section className="rounded-[2rem] border border-border/70 bg-card/90 p-8 shadow-sm shadow-black/5">
+    <div className="space-y-5 pb-8">
+      {/* ── Header ──────────────────────────────────────────── */}
+      <section
+        className="rounded-[1.5rem] p-6"
+        style={{
+          backgroundColor: '#ffffff',
+          boxShadow: '0 2px 8px rgba(55,101,107,0.05), 0 12px 32px rgba(55,101,107,0.05)',
+        }}
+      >
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <p className="text-sm uppercase tracking-[0.28em] text-muted-foreground">Personal gallery</p>
-            <h1 className="mt-2 text-4xl font-semibold text-foreground">Your generations</h1>
-            <p className="mt-3 max-w-2xl text-sm leading-7 text-muted-foreground">
-              Re-download, filter, and publish your best work. Retention: 30 days on Starter · 90 days on Pro · Unlimited on Business.
+            <p className="text-[10px] font-bold uppercase tracking-[0.18em]" style={{ color: '#70787a' }}>
+              Folia Gallery
             </p>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="rounded-2xl border border-border/70 bg-background px-4 py-3 text-center">
-              <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
-                {isFiltered ? 'Filtered' : 'Total'}
-              </p>
-              <p className="mt-1 text-2xl font-semibold text-foreground">{items.length}</p>
+            <h1
+              className="mt-1 text-3xl font-bold"
+              style={{ fontFamily: 'var(--font-heading)', color: '#1a1c1c', letterSpacing: '-0.02em' }}
+            >
+              My Gallery
+            </h1>
+            <div className="mt-2 flex items-center gap-3">
+              <span className="text-sm font-medium" style={{ color: '#70787a' }}>
+                {elementCount} Elements
+              </span>
+              <span style={{ color: '#c0c8c9' }}>·</span>
+              <span className="text-sm font-medium" style={{ color: '#70787a' }}>
+                {mockupCount} Mockups
+              </span>
             </div>
-            <Link href="/elements" className={cn(buttonVariants({ size: 'lg' }))}>
-              Generate new
-            </Link>
+          </div>
+
+          {/* Search + sort */}
+          <div className="flex flex-1 items-center gap-3 sm:justify-end">
+            <div className="relative min-w-[200px] max-w-xs flex-1">
+              <Search
+                className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2"
+                style={{ color: '#c0c8c9' }}
+              />
+              <input
+                readOnly
+                placeholder="Search creations..."
+                className="h-10 w-full rounded-full pl-10 pr-4 text-sm outline-none"
+                style={{
+                  backgroundColor: '#f4f3f3',
+                  color: '#1a1c1c',
+                  border: '1.5px solid transparent',
+                }}
+              />
+            </div>
+            <span
+              className="whitespace-nowrap rounded-full px-4 py-2 text-xs font-semibold"
+              style={{ backgroundColor: '#f4f3f3', color: '#404849' }}
+            >
+              Newest First
+            </span>
           </div>
         </div>
       </section>
 
+      {/* ── Filters ─────────────────────────────────────────── */}
       <GalleryFilters currentType={currentType} currentStyle={currentStyle} />
 
-      <GalleryGrid items={items} isFiltered={isFiltered} />
+      {/* ── Grid ────────────────────────────────────────────── */}
+      <GalleryGrid
+        items={items}
+        emptyTitle={currentType !== 'all' || currentStyle !== 'all' ? 'No results match this filter.' : 'No generations yet.'}
+        emptyDescription={
+          currentType !== 'all' || currentStyle !== 'all'
+            ? 'Try selecting a different style or type filter above.'
+            : 'Head to Elements or Mockups to generate your first clipart.'
+        }
+      />
     </div>
   )
 }

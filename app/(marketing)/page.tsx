@@ -1,8 +1,6 @@
 import type { Metadata } from 'next'
 
-import { CommunityPreview } from '@/components/marketing/community-preview'
 import { Faq } from '@/components/marketing/faq'
-import { GenerationCounter } from '@/components/marketing/generation-counter'
 import { Hero } from '@/components/marketing/hero'
 import { HowItWorks } from '@/components/marketing/how-it-works'
 import { MarketingFooter } from '@/components/marketing/footer'
@@ -25,19 +23,38 @@ export default function MarketingHomePage() {
 
 async function MarketingHomePageInner({ localePromise }: { localePromise: ReturnType<typeof getMarketingLocale> }) {
   const locale = await localePromise
+  const marqueeItems = locale === 'id'
+    ? [
+        '"Folia bikin storefront saya terlihat jauh lebih rapi."',
+        '"Style watercolor-nya cocok buat printable wedding."',
+        '"Akhirnya ada workflow mockup yang tidak ribet."',
+        '"Lebih cepat publish bundle baru tiap minggu."',
+      ]
+    : [
+        '"Folia made my storefront look dramatically cleaner."',
+        '"The watercolor output works perfectly for wedding printables."',
+        '"Finally, a mockup workflow that does not feel clunky."',
+        '"It is much faster to publish new bundles every week."',
+      ]
 
   return (
-    <div className="mx-auto flex max-w-7xl flex-col gap-16 px-4 py-12 sm:px-6 lg:px-8 lg:py-20">
+    <div className="mx-auto flex max-w-7xl flex-col gap-8 px-4 py-8 sm:px-6 lg:px-8 lg:gap-12 lg:py-14">
       <Hero locale={locale} />
 
-      <GenerationCounter />
+      <section className="overflow-hidden rounded-[1.75rem] bg-[#37656b] py-4">
+        <div className="flex min-w-max animate-[marquee_24s_linear_infinite] gap-10 px-6 text-sm font-bold text-white">
+          {[...marqueeItems, ...marqueeItems].map((item, index) => (
+            <span key={`${item}-${index}`} className="whitespace-nowrap">
+              {item}
+            </span>
+          ))}
+        </div>
+      </section>
 
       <HowItWorks locale={locale} />
       <StyleShowcase locale={locale} />
       <OccasionGallery locale={locale} />
       <PricingCards locale={locale} />
-      <CommunityPreview locale={locale} />
-
       <Faq locale={locale} />
       <MarketingFooter locale={locale} />
     </div>

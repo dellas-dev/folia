@@ -29,12 +29,12 @@ export async function getSignedR2Url(key: string, expiresIn = 604800): Promise<s
   }), { expiresIn })
 }
 
-export function isOwnedR2Key(
-  clerkUserId: string,
-  key: string,
-  allowedRoots: Array<'uploads' | 'generations' | 'removebg'> = ['uploads', 'generations', 'removebg']
-) {
-  return allowedRoots.some((root) => key.startsWith(`${root}/${clerkUserId}/`))
+export function isOwnedR2Key(key: string, clerkUserId: string) {
+  return (
+    key.startsWith(`uploads/${clerkUserId}/`) ||
+    key.startsWith(`generations/${clerkUserId}/`) ||
+    key.startsWith(`removebg/${clerkUserId}/`)
+  )
 }
 
 export function buildUploadR2Key(clerkUserId: string, originalFilename: string) {

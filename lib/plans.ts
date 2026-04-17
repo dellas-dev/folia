@@ -38,7 +38,7 @@ export const PLANS = {
     credits: 80,
     price_idr: 159000,
     price_usd: 19.99,
-    max_variations: 8,
+    max_variations: 4,
     resolution: 2048,
     mockup_access: true,
     reference_image: true,

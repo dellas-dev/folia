@@ -1,15 +1,18 @@
 'use client'
 
-import Link from 'next/link'
 import { useEffect, useState, useTransition } from 'react'
-import { Download, Globe, Leaf, LoaderCircle, Sparkles, X, ZoomIn } from 'lucide-react'
+import Link from 'next/link'
+import { Download, LoaderCircle, X, ZoomIn } from 'lucide-react'
 
 import type { GalleryItemData } from '@/lib/gallery'
-import { buttonVariants } from '@/components/ui/button'
-import { cn } from '@/lib/utils'
 
-type GalleryItemProps = {
-  item: GalleryItemData
+type GalleryItemProps = { item: GalleryItemData }
+
+function getExtensionFromKey(key: string) {
+  const ext = key.split('.').pop()?.toLowerCase()
+  if (ext === 'jpg' || ext === 'jpeg') return 'jpg'
+  if (ext === 'webp') return 'webp'
+  return 'png'
 }
 
 function formatDate(dateString: string) {
@@ -26,96 +29,72 @@ function styleLabel(style: string | null, scenePreset: string | null): string {
   return 'Mockup'
 }
 
-function buildGenerateSimilarHref(item: GalleryItemData) {
-  if (item.type !== 'element' || !item.style || !item.prompt_raw) {
-    return null
-  }
-
-  const params = new URLSearchParams({
-    style: item.style,
-    prompt: item.prompt_raw,
-  })
-
-  return `/elements?${params.toString()}`
-}
-
-function ImageFallback({ className }: { className?: string }) {
-  return (
-    <div className={cn('flex flex-col items-center justify-center gap-3 rounded-[1.1rem] bg-[#F1EFE8] text-center', className)}>
-      <Leaf className="size-9 text-[#5C9060]" />
-      <p className="text-xs text-muted-foreground">Image unavailable</p>
-    </div>
-  )
-}
-
 function Lightbox({ item, onClose }: { item: GalleryItemData; onClose: () => void }) {
-  const [imageFailed, setImageFailed] = useState(false)
+  const fileExtension = getExtensionFromKey(item.result_r2_key)
 
   useEffect(() => {
     const prev = document.body.style.overflow
     document.body.style.overflow = 'hidden'
-
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose()
-    }
-
+    function onKeyDown(e: KeyboardEvent) { if (e.key === 'Escape') onClose() }
     window.addEventListener('keydown', onKeyDown)
-
-    return () => {
-      document.body.style.overflow = prev
-      window.removeEventListener('keydown', onKeyDown)
-    }
+    return () => { document.body.style.overflow = prev; window.removeEventListener('keydown', onKeyDown) }
   }, [onClose])
 
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-10"
-      style={{ backgroundColor: 'rgba(0,0,0,0.84)' }}
+      style={{ backgroundColor: 'rgba(0,0,0,0.82)' }}
       onClick={onClose}
     >
       <div className="absolute inset-0 backdrop-blur-sm" />
 
       <div
-        className="relative z-10 flex w-full max-w-2xl flex-col overflow-hidden rounded-[1.8rem] bg-card shadow-2xl shadow-black/40"
+        className="relative z-10 flex w-full max-w-xl flex-col overflow-hidden rounded-[1.5rem] shadow-2xl"
+        style={{ backgroundColor: '#ffffff' }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Close button */}
+        {/* Close */}
         <button
           type="button"
           onClick={onClose}
-          className="absolute right-3 top-3 z-20 flex size-8 items-center justify-center rounded-full bg-black/30 text-white backdrop-blur-sm transition-colors hover:bg-black/50"
+          className="absolute right-3 top-3 z-20 flex size-8 items-center justify-center rounded-full text-white backdrop-blur-sm transition-colors hover:bg-black/50"
+          style={{ backgroundColor: 'rgba(0,0,0,0.3)' }}
           aria-label="Close preview"
         >
           <X className="size-4" />
         </button>
 
         {/* Image */}
-        <div className="bg-white p-6">
-          {imageFailed ? (
-            <ImageFallback className="min-h-[420px] w-full" />
-          ) : (
-            <img
-              src={item.signed_url}
-              alt={`${item.type} — ${styleLabel(item.style, item.scene_preset)}`}
-              className="max-h-[62vh] w-full object-contain"
-              onError={() => setImageFailed(true)}
-            />
-          )}
+        <div className="p-5" style={{ backgroundColor: '#f4f3f3' }}>
+          <img
+            src={item.signed_url}
+            alt={`${item.type} — ${styleLabel(item.style, item.scene_preset)}`}
+            className="max-h-[60vh] w-full rounded-[1rem] object-contain"
+          />
         </div>
 
-        {/* Metadata bar */}
-        <div className="flex flex-wrap items-center justify-between gap-4 border-t border-border/70 px-5 py-4">
+        {/* Meta bar */}
+        <div className="flex flex-wrap items-center justify-between gap-4 px-5 py-4">
           <div>
-            <p className="text-[11px] uppercase tracking-[0.22em] text-muted-foreground">{item.type}</p>
-            <p className="mt-0.5 text-sm font-semibold capitalize text-foreground">
+            <p
+              className="text-[10px] font-bold uppercase tracking-[0.18em]"
+              style={{ color: '#70787a' }}
+            >
+              {item.type}
+            </p>
+            <p
+              className="mt-0.5 text-sm font-semibold capitalize"
+              style={{ color: '#1a1c1c', fontFamily: 'var(--font-heading)' }}
+            >
               {styleLabel(item.style, item.scene_preset)}
             </p>
-            <p className="mt-0.5 text-xs text-muted-foreground">{formatDate(item.created_at)}</p>
+            <p className="mt-0.5 text-xs" style={{ color: '#70787a' }}>{formatDate(item.created_at)}</p>
           </div>
           <a
             href={item.signed_url}
-            download={`folia-${item.type}-${item.id.slice(0, 8)}.png`}
-            className={cn(buttonVariants({ size: 'sm' }))}
+            download={`folia-${item.type}-${item.id.slice(0, 8)}.${fileExtension}`}
+            className="flex h-9 items-center gap-2 rounded-full px-4 text-sm font-bold text-white"
+            style={{ background: 'linear-gradient(135deg, #37656b, #507e84)' }}
           >
             <Download className="size-4" />
             Download
@@ -131,102 +110,101 @@ export function GalleryItem({ item }: GalleryItemProps) {
   const [isPublic, setIsPublic] = useState(item.is_public)
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
-  const [imageFailed, setImageFailed] = useState(false)
-  const generateSimilarHref = buildGenerateSimilarHref(item)
 
   function togglePublic() {
     startTransition(async () => {
       setError(null)
-
       const response = await fetch('/api/gallery/visibility', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ generation_id: item.id, is_public: !isPublic }),
       })
-
       const data = await response.json() as { error?: string }
-
-      if (!response.ok) {
-        setError(data.error || 'Failed to update visibility.')
-        return
-      }
-
+      if (!response.ok) { setError(data.error || 'Failed to update visibility.'); return }
       setIsPublic((current) => !current)
     })
   }
 
+  const label = styleLabel(item.style, item.scene_preset)
+
   return (
     <>
-      <article className="group break-inside-avoid overflow-hidden rounded-[1.6rem] border border-border/70 bg-card shadow-sm shadow-black/5 transition-transform duration-200 hover:scale-[1.02] hover:shadow-md hover:shadow-black/10">
-        {/* Thumbnail — clickable for lightbox */}
+      <article
+        className="break-inside-avoid overflow-hidden rounded-[1.25rem]"
+        style={{
+          backgroundColor: '#ffffff',
+          boxShadow: '0 2px 8px rgba(55,101,107,0.06), 0 8px 20px rgba(55,101,107,0.05)',
+        }}
+      >
+        {/* Image */}
         <button
           type="button"
           onClick={() => setLightboxOpen(true)}
-          className="group relative w-full bg-white p-3"
+          className="group relative w-full"
           aria-label="Open full preview"
         >
-          {imageFailed ? (
-            <ImageFallback className="min-h-[260px] w-full" />
-          ) : (
-            <img
-              src={item.signed_url}
-              alt={`${item.type} — ${styleLabel(item.style, item.scene_preset)}`}
-              className="h-auto w-full cursor-zoom-in rounded-[1.1rem] object-cover transition-opacity group-hover:opacity-90"
-              loading="lazy"
-              onError={() => setImageFailed(true)}
-            />
-          )}
-          {/* Zoom hint overlay */}
-          <div className="absolute inset-3 flex items-center justify-center rounded-[1.1rem] bg-black/0 opacity-0 transition-all group-hover:bg-black/10 group-hover:opacity-100">
-            <div className="flex items-center gap-1.5 rounded-full bg-black/40 px-3 py-1.5 text-xs font-medium text-white backdrop-blur-sm">
+          <img
+            src={item.signed_url}
+            alt={`${item.type} — ${label}`}
+            className="h-auto w-full rounded-t-[1.25rem] object-cover transition-opacity group-hover:opacity-90"
+            loading="lazy"
+          />
+          <div className="absolute inset-0 flex items-center justify-center rounded-t-[1.25rem] bg-black/0 opacity-0 transition-all group-hover:bg-black/10 group-hover:opacity-100">
+            <div
+              className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold text-white backdrop-blur-sm"
+              style={{ backgroundColor: 'rgba(0,0,0,0.35)' }}
+            >
               <ZoomIn className="size-3.5" />
               Preview
             </div>
           </div>
         </button>
 
-        <div className="space-y-3 p-4">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">{item.type}</p>
-              <h3 className="mt-1 text-sm font-semibold capitalize text-foreground">
-                {styleLabel(item.style, item.scene_preset)}
-              </h3>
-            </div>
-            <span className="shrink-0 text-xs text-muted-foreground">{formatDate(item.created_at)}</span>
-          </div>
+        {/* Footer */}
+        <div className="flex items-center justify-between gap-2 px-3 py-2.5">
+          {/* Style badge */}
+          <span
+            className="rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em]"
+            style={{ backgroundColor: '#d1e3e6', color: '#37656b' }}
+          >
+            {label}
+          </span>
 
-          <div className="flex flex-wrap gap-2">
-            <a
-              href={item.signed_url}
-              download={`folia-${item.type}-${item.id.slice(0, 8)}.png`}
-              className={cn(buttonVariants({ size: 'sm' }))}
-            >
-              <Download className="size-4" />
-              Download
-            </a>
-            {generateSimilarHref ? (
-              <Link href={generateSimilarHref} className={cn(buttonVariants({ variant: 'outline', size: 'sm' }))}>
-                <Sparkles className="size-4" />
-                Generate similar
-              </Link>
-            ) : null}
+          {/* Right: public toggle + remix */}
+          <div className="flex items-center gap-2">
+            {/* Visibility toggle */}
             <button
               type="button"
               onClick={togglePublic}
               disabled={isPending}
-              className={cn(
-                buttonVariants({ variant: 'ghost', size: 'sm' }),
-                'pointer-events-none text-xs text-muted-foreground opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100'
-              )}
+              className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-semibold transition-colors"
+              style={{
+                backgroundColor: isPublic ? 'rgba(55,101,107,0.1)' : '#eeeeee',
+                color: isPublic ? '#37656b' : '#70787a',
+              }}
+              title={isPublic ? 'Click to make private' : 'Click to make public'}
             >
-              {isPending ? <LoaderCircle className="size-4 animate-spin" /> : <Globe className="size-4" />}
-              {isPublic ? 'Public' : 'Make public'}
+              {isPending
+                ? <LoaderCircle className="size-3 animate-spin" />
+                : <span className="size-1.5 rounded-full inline-block" style={{ backgroundColor: isPublic ? '#37656b' : '#c0c8c9' }} />
+              }
+              {isPublic ? 'Public' : 'Private'}
             </button>
-          </div>
 
-          {error ? <p className="text-xs text-destructive">{error}</p> : null}
+            <Link
+              href={item.type === 'mockup'
+                ? `/mockups?r2_key=${encodeURIComponent(item.result_r2_key)}`
+                : '/elements'
+              }
+              className="rounded-full px-2.5 py-1 text-[10px] font-bold text-white transition-opacity hover:opacity-90"
+              style={{ background: 'linear-gradient(135deg, #37656b, #507e84)' }}
+            >
+              Remix
+            </Link>
+          </div>
         </div>
+
+        {error ? <p className="px-3 pb-2 text-xs" style={{ color: '#ba1a1a' }}>{error}</p> : null}
       </article>
 
       {lightboxOpen ? <Lightbox item={item} onClose={() => setLightboxOpen(false)} /> : null}

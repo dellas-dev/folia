@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Folia — Pilihan Desain Sidebar</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Inter', sans-serif;
+    background: #F0F2F5;
+    min-height: 100vh;
+    padding: 32px 24px;
+  }
+  .page-title {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 22px; font-weight: 700; color: #1E2A2F;
+    margin-bottom: 6px; letter-spacing: -0.03em;
+  }
+  .page-sub { font-size: 14px; color: #6B7D85; margin-bottom: 32px; }
+
+  .options { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+
+  .option-wrap {
+    background: white; border-radius: 16px;
+    overflow: hidden; cursor: pointer;
+    border: 2.5px solid transparent;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    transition: all 0.2s ease;
+  }
+  .option-wrap:hover { box-shadow: 0 8px 24px rgba(31,166,181,0.15); border-color: #1FA6B5; transform: translateY(-2px); }
+  .option-wrap.selected { border-color: #1FA6B5; box-shadow: 0 0 0 4px rgba(31,166,181,0.12); }
+
+  .option-label {
+    padding: 14px 18px 12px;
+    display: flex; align-items: center; justify-content: space-between;
+    border-bottom: 1px solid #EEF3F5;
+  }
+  .option-label h3 { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 14px; font-weight: 700; color: #1E2A2F; }
+  .option-label span { font-size: 12px; color: #6B7D85; }
+  .badge { background: #E4F4F6; color: #0E8EA0; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 100px; }
+
+  .mockup { display: flex; height: 460px; }
+
+  /* ===== OPTION A: Current-inspired, improved ===== */
+  .sidebar-a {
+    width: 220px; background: #FFFFFF; border-right: 1px solid #DDE6EA;
+    display: flex; flex-direction: column; padding: 0; flex-shrink: 0;
+  }
+  .sidebar-a .logo-area {
+    padding: 20px 18px; border-bottom: 1px solid #DDE6EA;
+  }
+  .sidebar-a .logo {
+    display: flex; align-items: center; gap: 10px;
+  }
+  .sidebar-a .logo-icon {
+    width: 34px; height: 34px; border-radius: 10px;
+    background: linear-gradient(135deg, #1FA6B5, #0E8EA0);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 800; color: white; font-size: 14px;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+  }
+  .sidebar-a .logo-text { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 16px; font-weight: 800; color: #1E2A2F; letter-spacing: -0.03em; }
+  .sidebar-a .logo-text span { color: #1FA6B5; }
+  .sidebar-a nav { flex: 1; padding: 10px 10px; display: flex; flex-direction: column; gap: 2px; }
+  .sidebar-a .nav-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 12px; border-radius: 10px; font-size: 13px; font-weight: 500;
+    color: #6B7D85; transition: all 0.15s;
+  }
+  .sidebar-a .nav-item.active { background: #E4F4F6; color: #0E8EA0; font-weight: 600; }
+  .sidebar-a .nav-item .icon { width: 16px; height: 16px; opacity: 0.7; }
+  .sidebar-a .nav-item.active .icon { opacity: 1; }
+  .sidebar-a .footer { padding: 10px 10px; border-top: 1px solid #DDE6EA; }
+
+  /* ===== OPTION B: Reference-style (Panze-inspired) ===== */
+  .sidebar-b {
+    width: 230px; background: #FFFFFF; border-right: 1px solid #DDE6EA;
+    display: flex; flex-direction: column; flex-shrink: 0;
+  }
+  .sidebar-b .logo-area {
+    padding: 24px 20px 20px;
+  }
+  .sidebar-b .logo {
+    display: flex; align-items: center; gap: 10px;
+  }
+  .sidebar-b .logo-icon {
+    width: 40px; height: 40px; border-radius: 12px;
+    background: linear-gradient(135deg, #1FA6B5 0%, #0E8EA0 100%);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 800; color: white; font-size: 18px;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    box-shadow: 0 4px 12px rgba(31,166,181,0.35);
+  }
+  .sidebar-b .logo-text { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 18px; font-weight: 800; color: #1E2A2F; letter-spacing: -0.03em; }
+  .sidebar-b .logo-sub { font-size: 10px; color: #A7B0B5; font-weight: 500; letter-spacing: 0.05em; text-transform: uppercase; }
+  .sidebar-b nav { flex: 1; padding: 6px 12px; display: flex; flex-direction: column; gap: 3px; }
+  .sidebar-b .nav-label { font-size: 10px; font-weight: 600; color: #A7B0B5; text-transform: uppercase; letter-spacing: 0.08em; padding: 8px 8px 4px; }
+  .sidebar-b .nav-item {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 14px; border-radius: 12px; font-size: 14px; font-weight: 500;
+    color: #6B7D85;
+  }
+  .sidebar-b .nav-item.active {
+    background: linear-gradient(135deg, #1FA6B5, #0E8EA0);
+    color: white; font-weight: 600;
+    box-shadow: 0 4px 12px rgba(31,166,181,0.30);
+  }
+  .sidebar-b .nav-item .icon { width: 18px; height: 18px; }
+  .sidebar-b .footer { padding: 12px; border-top: 1px solid #EEF3F5; }
+  .sidebar-b .upgrade-btn {
+    display: flex; align-items: center; gap: 10px;
+    background: linear-gradient(135deg, #FF7A5A20, #FF7A5A10);
+    border: 1px solid #FF7A5A30; border-radius: 12px;
+    padding: 10px 14px; font-size: 13px; font-weight: 600; color: #FF7A5A;
+  }
+
+  /* ===== OPTION C: Dark sidebar ===== */
+  .sidebar-c {
+    width: 230px; background: #1E2A2F; border-right: none;
+    display: flex; flex-direction: column; flex-shrink: 0;
+  }
+  .sidebar-c .logo-area { padding: 24px 20px 20px; }
+  .sidebar-c .logo { display: flex; align-items: center; gap: 10px; }
+  .sidebar-c .logo-icon {
+    width: 40px; height: 40px; border-radius: 12px;
+    background: linear-gradient(135deg, #1FA6B5, #0E8EA0);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 800; color: white; font-size: 18px; font-family: 'Plus Jakarta Sans', sans-serif;
+  }
+  .sidebar-c .logo-text { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 18px; font-weight: 800; color: #FFFFFF; letter-spacing: -0.03em; }
+  .sidebar-c .logo-sub { font-size: 10px; color: rgba(255,255,255,0.4); font-weight: 500; letter-spacing: 0.05em; text-transform: uppercase; }
+  .sidebar-c nav { flex: 1; padding: 6px 12px; display: flex; flex-direction: column; gap: 3px; }
+  .sidebar-c .nav-item {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 14px; border-radius: 12px; font-size: 14px; font-weight: 500;
+    color: rgba(255,255,255,0.5);
+  }
+  .sidebar-c .nav-item.active {
+    background: rgba(31,166,181,0.15); color: #4BBFCC; font-weight: 600;
+    border-left: 3px solid #1FA6B5; padding-left: 11px;
+  }
+  .sidebar-c .nav-item .icon { width: 18px; height: 18px; }
+  .sidebar-c .footer { padding: 12px; border-top: 1px solid rgba(255,255,255,0.08); }
+  .sidebar-c .upgrade-btn {
+    display: flex; align-items: center; gap: 10px;
+    background: rgba(31,166,181,0.15); border: 1px solid rgba(31,166,181,0.25);
+    border-radius: 12px; padding: 10px 14px; font-size: 13px; font-weight: 600; color: #1FA6B5;
+  }
+
+  /* Main content area (shared) */
+  .main-content { flex: 1; background: #F7F9FB; padding: 20px; overflow: hidden; }
+  .main-header { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 18px; font-weight: 700; color: #1E2A2F; margin-bottom: 14px; }
+  .stat-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 14px; }
+  .stat-card { background: white; border-radius: 12px; padding: 14px; border: 1px solid #DDE6EA; }
+  .stat-card .label { font-size: 11px; color: #6B7D85; font-weight: 500; margin-bottom: 6px; }
+  .stat-card .value { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 22px; font-weight: 800; color: #1E2A2F; }
+  .stat-card .badge-green { font-size: 11px; color: #10B981; background: #D1FAE5; padding: 2px 6px; border-radius: 6px; font-weight: 600; margin-top: 4px; display: inline-block; }
+  .progress-bar { background: #EEF3F5; height: 6px; border-radius: 100px; overflow: hidden; margin-top: 6px; }
+  .progress-fill { height: 100%; background: linear-gradient(90deg, #1FA6B5, #0E8EA0); border-radius: 100px; width: 60%; }
+  .quick-actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .action-card { background: white; border-radius: 12px; padding: 14px; border: 1px solid #DDE6EA; }
+  .action-icon { width: 32px; height: 32px; background: #E4F4F6; border-radius: 8px; margin-bottom: 8px; display: flex; align-items: center; justify-content: center; }
+  .action-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 13px; font-weight: 700; color: #1E2A2F; }
+  .action-desc { font-size: 11px; color: #6B7D85; margin-top: 3px; }
+
+  /* Icon SVGs */
+  svg { display: block; }
+  .nav-icon { width: 18px; height: 18px; }
+
+  /* Selection */
+  .select-btn {
+    display: block; width: 100%; margin: 0; padding: 12px;
+    background: none; border: none; border-top: 1px solid #EEF3F5;
+    font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 600;
+    color: #1FA6B5; cursor: pointer; text-align: center;
+    transition: background 0.15s;
+  }
+  .select-btn:hover { background: #E4F4F6; }
+  .option-wrap.selected .select-btn { background: #1FA6B5; color: white; }
+
+  .bottom-note { text-align: center; margin-top: 24px; font-size: 13px; color: #A7B0B5; }
+</style>
+</head>
+<body>
+
+<div class="page-title">Pilih Gaya Sidebar — Folia Dashboard</div>
+<p class="page-sub">Klik salah satu untuk memilih. Ini akan jadi kerangka semua halaman.</p>
+
+<div class="options">
+
+  <!-- OPTION A -->
+  <div class="option-wrap" onclick="select('a', this)">
+    <div class="option-label">
+      <div>
+        <h3>A — Refined Current</h3>
+        <p style="font-size:12px;color:#6B7D85;margin-top:2px">Perbaikan dari yang ada, tetap familiar</p>
+      </div>
+    </div>
+    <div class="mockup">
+      <div class="sidebar-a">
+        <div class="logo-area">
+          <div class="logo">
+            <div class="logo-icon">F</div>
+            <div>
+              <div class="logo-text">Folia <span>AI</span></div>
+            </div>
+          </div>
+        </div>
+        <nav>
+          <div class="nav-item active">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+            Dashboard
+          </div>
+          <div class="nav-item">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+            Elements
+          </div>
+          <div class="nav-item">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+            Mockups
+          </div>
+          <div class="nav-item">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+            Gallery
+          </div>
+          <div class="nav-item">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83"/></svg>
+            Remove BG
+          </div>
+          <div class="nav-item">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
+            Affiliate
+          </div>
+          <div class="nav-item">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93A10 10 0 0 0 4.93 19.07"/></svg>
+            Settings
+          </div>
+        </nav>
+        <div class="footer">
+          <div class="nav-item" style="color:#1FA6B5;font-size:13px;">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2"/><path d="M1 10h22"/></svg>
+            Upgrade plan
+          </div>
+        </div>
+      </div>
+      <div class="main-content">
+        <div class="main-header">Dashboard</div>
+        <div class="stat-cards">
+          <div class="stat-card"><div class="label">CREDITS LEFT</div><div class="value">8</div><div class="progress-bar"><div class="progress-fill" style="width:80%"></div></div></div>
+          <div class="stat-card"><div class="label">PLAN</div><div class="value" style="font-size:18px">Starter</div></div>
+          <div class="stat-card"><div class="label">USAGE</div><div class="value">60%</div><div class="badge-green">▲ Active</div></div>
+        </div>
+        <div class="quick-actions">
+          <div class="action-card"><div class="action-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1FA6B5" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/></svg></div><div class="action-title">Elements</div><div class="action-desc">Generate clipart assets</div></div>
+          <div class="action-card"><div class="action-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1FA6B5" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/></svg></div><div class="action-title">Mockups</div><div class="action-desc">Build listing scenes</div></div>
+          <div class="action-card"><div class="action-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1FA6B5" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/></svg></div><div class="action-title">Gallery</div><div class="action-desc">View saved results</div></div>
+        </div>
+      </div>
+    </div>
+    <button class="select-btn" onclick="select('a', this.closest('.option-wrap'))">Pilih A</button>
+  </div>
+
+  <!-- OPTION B -->
+  <div class="option-wrap" onclick="select('b', this)">
+    <div class="option-label">
+      <div>
+        <h3>B — Modern SaaS <span class="badge">Rekomendasi</span></h3>
+        <p style="font-size:12px;color:#6B7D85;margin-top:2px">Seperti referensi, filled active state</p>
+      </div>
+    </div>
+    <div class="mockup">
+      <div class="sidebar-b">
+        <div class="logo-area">
+          <div class="logo">
+            <div class="logo-icon">F</div>
+            <div>
+              <div class="logo-text">Folia</div>
+              <div class="logo-sub">AI Studio</div>
+            </div>
+          </div>
+        </div>
+        <nav>
+          <div class="nav-item active">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+            Dashboard
+          </div>
+          <div class="nav-item">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+            Elements
+          </div>
+          <div class="nav-item">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+            Mockups
+          </div>
+          <div class="nav-item">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+            Gallery
+          </div>
+          <div class="nav-item">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83"/></svg>
+            Remove BG
+          </div>
+          <div class="nav-item">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+            Affiliate
+          </div>
+          <div class="nav-item">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93A10 10 0 0 0 4.93 19.07M16.95 16.95a7 7 0 0 1-9.9-9.9"/></svg>
+            Settings
+          </div>
+        </nav>
+        <div class="footer">
+          <div class="upgrade-btn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+            Upgrade Plan
+          </div>
+        </div>
+      </div>
+      <div class="main-content">
+        <div class="main-header">Dashboard</div>
+        <div class="stat-cards">
+          <div class="stat-card"><div class="label">CREDITS LEFT</div><div class="value">8</div><div class="progress-bar"><div class="progress-fill"></div></div></div>
+          <div class="stat-card"><div class="label">PLAN</div><div class="value" style="font-size:18px">Starter</div></div>
+          <div class="stat-card"><div class="label">USAGE</div><div class="value">60%</div><div class="badge-green">▲ Active</div></div>
+        </div>
+        <div class="quick-actions">
+          <div class="action-card"><div class="action-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1FA6B5" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/></svg></div><div class="action-title">Elements</div><div class="action-desc">Generate clipart assets</div></div>
+          <div class="action-card"><div class="action-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1FA6B5" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/></svg></div><div class="action-title">Mockups</div><div class="action-desc">Build listing scenes</div></div>
+          <div class="action-card"><div class="action-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1FA6B5" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/></svg></div><div class="action-title">Gallery</div><div class="action-desc">View saved results</div></div>
+        </div>
+      </div>
+    </div>
+    <button class="select-btn" onclick="select('b', this.closest('.option-wrap'))">Pilih B</button>
+  </div>
+
+  <!-- OPTION C -->
+  <div class="option-wrap" onclick="select('c', this)">
+    <div class="option-label">
+      <div>
+        <h3>C — Dark Sidebar</h3>
+        <p style="font-size:12px;color:#6B7D85;margin-top:2px">Sidebar gelap, konten terang</p>
+      </div>
+    </div>
+    <div class="mockup">
+      <div class="sidebar-c">
+        <div class="logo-area">
+          <div class="logo">
+            <div class="logo-icon">F</div>
+            <div>
+              <div class="logo-text">Folia</div>
+              <div class="logo-sub">AI Studio</div>
+            </div>
+          </div>
+        </div>
+        <nav>
+          <div class="nav-item active">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+            Dashboard
+          </div>
+          <div class="nav-item">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+            Elements
+          </div>
+          <div class="nav-item">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+            Mockups
+          </div>
+          <div class="nav-item">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+            Gallery
+          </div>
+          <div class="nav-item">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4"/></svg>
+            Remove BG
+          </div>
+          <div class="nav-item">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+            Affiliate
+          </div>
+          <div class="nav-item">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/></svg>
+            Settings
+          </div>
+        </nav>
+        <div class="footer">
+          <div class="upgrade-btn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+            Upgrade Plan
+          </div>
+        </div>
+      </div>
+      <div class="main-content">
+        <div class="main-header">Dashboard</div>
+        <div class="stat-cards">
+          <div class="stat-card"><div class="label">CREDITS LEFT</div><div class="value">8</div><div class="progress-bar"><div class="progress-fill"></div></div></div>
+          <div class="stat-card"><div class="label">PLAN</div><div class="value" style="font-size:18px">Starter</div></div>
+          <div class="stat-card"><div class="label">USAGE</div><div class="value">60%</div><div class="badge-green">▲ Active</div></div>
+        </div>
+        <div class="quick-actions">
+          <div class="action-card"><div class="action-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1FA6B5" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/></svg></div><div class="action-title">Elements</div><div class="action-desc">Generate clipart assets</div></div>
+          <div class="action-card"><div class="action-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1FA6B5" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/></svg></div><div class="action-title">Mockups</div><div class="action-desc">Build listing scenes</div></div>
+          <div class="action-card"><div class="action-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1FA6B5" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/></svg></div><div class="action-title">Gallery</div><div class="action-desc">View saved results</div></div>
+        </div>
+      </div>
+    </div>
+    <button class="select-btn" onclick="select('c', this.closest('.option-wrap'))">Pilih C</button>
+  </div>
+
+</div>
+
+<p class="bottom-note">Klik salah satu option atau ketik "A", "B", atau "C" di terminal</p>
+
+<script>
+  let selected = null;
+  function select(choice, el) {
+    document.querySelectorAll('.option-wrap').forEach(o => o.classList.remove('selected'));
+    el.closest ? el.closest('.option-wrap').classList.add('selected') : el.classList.add('selected');
+    selected = choice;
+  }
+</script>
+</body>
+</html>

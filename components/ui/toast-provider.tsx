@@ -49,18 +49,18 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
             <div
               key={item.id}
               className={cn(
-                'pointer-events-auto rounded-[1.4rem] border bg-card p-4 shadow-lg shadow-black/10 backdrop-blur',
-                item.tone === 'success' ? 'border-emerald-500/30' : 'border-destructive/30'
+                'pointer-events-auto rounded-[1.5rem] bg-[rgba(251,249,244,0.88)] p-4 shadow-[0_10px_40px_-10px_rgba(27,28,25,0.08)] backdrop-blur-[20px]',
+                item.tone === 'success' ? 'text-charcoal' : 'text-charcoal'
               )}
             >
               <div className="flex items-start gap-3">
-                <div className={cn('mt-0.5', item.tone === 'success' ? 'text-emerald-600' : 'text-destructive')}>
+                <div className={cn('mt-0.5', item.tone === 'success' ? 'text-sage-dark' : 'text-destructive')}>
                   <Icon className="size-5" />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-semibold text-foreground">{item.title}</p>
+                  <p className="text-sm font-semibold text-charcoal">{item.title}</p>
                   {item.description ? (
-                    <p className="mt-1 text-sm leading-6 text-muted-foreground">{item.description}</p>
+                    <p className="mt-1 text-sm leading-6 text-charcoal/65">{item.description}</p>
                   ) : null}
                 </div>
                 <Button
@@ -68,7 +68,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
                   variant="ghost"
                   size="icon-sm"
                   onClick={() => dismiss(item.id)}
-                  className="shrink-0"
+                  className="shrink-0 text-charcoal/60 hover:bg-white"
                 >
                   <X className="size-4" />
                 </Button>

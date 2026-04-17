@@ -1,11 +1,9 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Download, LoaderCircle } from 'lucide-react'
+import { Sparkles } from 'lucide-react'
 
 import { ResultCard } from '@/components/app/generators/result-card'
-import { buttonVariants } from '@/components/ui/button'
-import { useToast } from '@/components/ui/toast-provider'
 import { cn } from '@/lib/utils'
 import type { GenerationResult } from '@/types'
 
@@ -17,8 +15,8 @@ type ResultGridProps = {
 }
 
 const STEPS = [
-  { label: 'Enhancing your prompt with Folia AI', ms: 5000 },
-  { label: 'Generating image with Folia AI', ms: 30000 },
+  { label: 'Folia is refining your prompt', ms: 5000 },
+  { label: 'Folia is generating your artwork', ms: 30000 },
   { label: 'Almost there…', ms: Infinity },
 ] as const
 
@@ -32,45 +30,56 @@ function GeneratingPanel({ numExpected }: { numExpected: number }) {
     return () => { clearTimeout(t1); clearTimeout(t2) }
   }, [])
 
-  const barWidth = stepIndex === 0 ? '20%' : stepIndex === 1 ? '60%' : '88%'
+  const barWidth = stepIndex === 0 ? '20%' : stepIndex === 1 ? '62%' : '88%'
 
   return (
-    <div className="rounded-[1.8rem] border border-border/70 bg-card/85 p-5 shadow-sm shadow-black/5">
-      <p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">Generating {numExpected} image{numExpected > 1 ? 's' : ''}</p>
+    <div
+      className="rounded-[1.25rem] p-5"
+      style={{
+        backgroundColor: '#ffffff',
+        boxShadow: '0 2px 8px rgba(55,101,107,0.06), 0 8px 24px rgba(55,101,107,0.06)',
+      }}
+    >
+      <p className="text-[10px] font-bold uppercase tracking-[0.2em]" style={{ color: '#70787a' }}>
+        Generating {numExpected} image{numExpected > 1 ? 's' : ''}
+      </p>
 
       <div className="mt-4 space-y-3">
         {STEPS.map((step, i) => (
           <div
             key={i}
-            className={cn(
-              'flex items-center gap-3 text-sm transition-opacity duration-500',
-              i <= stepIndex ? 'opacity-100' : 'opacity-25'
-            )}
+            className={cn('flex items-center gap-3 text-sm transition-opacity duration-500', i <= stepIndex ? 'opacity-100' : 'opacity-25')}
           >
-            <span className={cn(
-              'flex size-5 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold transition-colors',
-              i < stepIndex
-                ? 'bg-primary text-primary-foreground'
-                : i === stepIndex
-                  ? 'animate-pulse bg-primary/20 text-primary'
-                  : 'bg-muted text-muted-foreground'
-            )}>
+            <span
+              className={cn(
+                'flex size-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold transition-colors',
+                i < stepIndex ? 'text-white' : i === stepIndex ? 'animate-pulse' : ''
+              )}
+              style={{
+                backgroundColor: i < stepIndex
+                  ? '#37656b'
+                  : i === stepIndex
+                    ? 'rgba(55,101,107,0.15)'
+                    : '#eeeeee',
+                color: i < stepIndex ? '#ffffff' : i === stepIndex ? '#37656b' : '#c0c8c9',
+              }}
+            >
               {i < stepIndex ? '✓' : i + 1}
             </span>
-            <span className={cn(
-              'transition-colors',
-              i === stepIndex ? 'font-medium text-foreground' : 'text-muted-foreground'
-            )}>
+            <span
+              className="text-xs transition-colors"
+              style={{ color: i === stepIndex ? '#1a1c1c' : '#70787a', fontWeight: i === stepIndex ? 600 : 400 }}
+            >
               {step.label}
             </span>
           </div>
         ))}
       </div>
 
-      <div className="mt-5 h-1 overflow-hidden rounded-full bg-muted">
+      <div className="mt-5 h-1.5 overflow-hidden rounded-full" style={{ backgroundColor: '#eeeeee' }}>
         <div
-          className="h-full rounded-full bg-primary transition-all duration-[2000ms] ease-out"
-          style={{ width: barWidth }}
+          className="h-full rounded-full transition-all duration-[2000ms] ease-out"
+          style={{ width: barWidth, background: 'linear-gradient(90deg, #37656b, #507e84)' }}
         />
       </div>
     </div>
@@ -79,23 +88,30 @@ function GeneratingPanel({ numExpected }: { numExpected: number }) {
 
 function SkeletonCard() {
   return (
-    <div className="overflow-hidden rounded-[1.6rem] border border-border/70 bg-card shadow-sm shadow-black/5">
-      <div className="aspect-square animate-pulse bg-[linear-gradient(135deg,oklch(0.94_0.01_84),oklch(0.90_0.02_145))]">
+    <div
+      className="overflow-hidden rounded-[1.25rem]"
+      style={{
+        backgroundColor: '#ffffff',
+        boxShadow: '0 2px 8px rgba(55,101,107,0.05)',
+      }}
+    >
+      <div className="aspect-square animate-pulse" style={{ backgroundColor: '#f4f3f3' }}>
         <div className="flex h-full items-center justify-center">
-          <div className="space-y-3 text-center">
-            <div className="mx-auto h-3 w-24 rounded-full bg-muted-foreground/20" />
-            <div className="mx-auto h-3 w-16 rounded-full bg-muted-foreground/10" />
+          <div className="space-y-2.5 text-center">
+            <div className="mx-auto h-2.5 w-20 rounded-full" style={{ backgroundColor: '#eeeeee' }} />
+            <div className="mx-auto h-2.5 w-14 rounded-full" style={{ backgroundColor: '#eeeeee' }} />
           </div>
         </div>
       </div>
       <div className="space-y-3 p-4">
         <div className="flex items-center justify-between gap-3">
-          <div className="h-5 w-20 animate-pulse rounded-lg bg-muted" />
-          <div className="h-4 w-10 animate-pulse rounded-lg bg-muted" />
+          <div className="h-4 w-16 animate-pulse rounded-full" style={{ backgroundColor: '#eeeeee' }} />
+          <div className="h-4 w-10 animate-pulse rounded-full" style={{ backgroundColor: '#eeeeee' }} />
         </div>
-        <div className="flex gap-2">
-          <div className="h-10 w-28 animate-pulse rounded-2xl bg-muted" />
-          <div className="h-10 w-32 animate-pulse rounded-2xl bg-muted" />
+        <div className="h-10 w-full animate-pulse rounded-full" style={{ backgroundColor: '#eeeeee' }} />
+        <div className="grid grid-cols-2 gap-2">
+          <div className="h-9 animate-pulse rounded-full" style={{ backgroundColor: '#eeeeee' }} />
+          <div className="h-9 animate-pulse rounded-full" style={{ backgroundColor: '#eeeeee' }} />
         </div>
       </div>
     </div>
@@ -103,61 +119,12 @@ function SkeletonCard() {
 }
 
 export function ResultGrid({ results, promptEnhanced, isGenerating, numExpected = 1 }: ResultGridProps) {
-  const { toast } = useToast()
-  const [isDownloadingZip, setIsDownloadingZip] = useState(false)
-
-  async function handleDownloadZip() {
-    try {
-      setIsDownloadingZip(true)
-      const { default: JSZip } = await import('jszip')
-      const zip = new JSZip()
-
-      await Promise.all(
-        results.map(async (result) => {
-          const response = await fetch(result.signed_url)
-
-          if (!response.ok) {
-            throw new Error('Failed to prepare ZIP download.')
-          }
-
-          const blob = await response.blob()
-          const format = result.format ?? 'jpg'
-          zip.file(`folia-result-${result.index + 1}.${format}`, blob)
-        })
-      )
-
-      const archive = await zip.generateAsync({ type: 'blob' })
-      const url = URL.createObjectURL(archive)
-      const link = document.createElement('a')
-      link.href = url
-      link.download = 'folia-results.zip'
-      link.click()
-      URL.revokeObjectURL(url)
-
-      toast({
-        tone: 'success',
-        title: 'ZIP download ready',
-        description: `${results.length} files bundled into one download.`,
-      })
-    } catch (error) {
-      toast({
-        tone: 'error',
-        title: 'ZIP download failed',
-        description: error instanceof Error ? error.message : 'Failed to create ZIP archive.',
-      })
-    } finally {
-      setIsDownloadingZip(false)
-    }
-  }
-
   if (isGenerating) {
     return (
-      <section className="space-y-5">
+      <section className="space-y-4">
         <GeneratingPanel numExpected={numExpected} />
-        <div className="grid gap-5 lg:grid-cols-2 2xl:grid-cols-3">
-          {Array.from({ length: numExpected }, (_, i) => (
-            <SkeletonCard key={i} />
-          ))}
+        <div className="grid gap-4 sm:grid-cols-2">
+          {Array.from({ length: numExpected }, (_, i) => <SkeletonCard key={i} />)}
         </div>
       </section>
     )
@@ -165,37 +132,45 @@ export function ResultGrid({ results, promptEnhanced, isGenerating, numExpected 
 
   if (results.length === 0) {
     return (
-      <div className="rounded-[1.8rem] border border-dashed border-border/70 bg-card/60 p-8 text-center">
-        <h2 className="text-2xl font-semibold text-foreground">Your generated images will appear here.</h2>
-        <p className="mt-3 text-sm leading-7 text-muted-foreground">
-          Pick a style, describe the element you need, then generate. Folia will return high-quality clipart images with white backgrounds.
-        </p>
+      <div
+        className="flex min-h-[28rem] flex-col items-center justify-center gap-4 rounded-[1.25rem] p-8 text-center"
+        style={{ backgroundColor: '#f4f3f3' }}
+      >
+        <div
+          className="flex size-14 items-center justify-center rounded-full"
+          style={{ backgroundColor: '#d1e3e6' }}
+        >
+          <Sparkles className="size-6" style={{ color: '#37656b' }} />
+        </div>
+        <div className="max-w-xs">
+          <p
+            className="text-base font-bold"
+            style={{ fontFamily: 'var(--font-heading)', color: '#1a1c1c' }}
+          >
+            Your clipart will appear here
+          </p>
+          <p className="mt-2 text-sm leading-6" style={{ color: '#70787a' }}>
+            Pick a style, describe what you need, then hit Generate. Elements are delivered as white-background JPGs, and Remove BG turns them into transparent PNGs.
+          </p>
+        </div>
       </div>
     )
   }
 
   return (
-    <section className="space-y-5">
-      <div className="rounded-[1.8rem] border border-border/70 bg-card/85 p-5 shadow-sm shadow-black/5">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <p className="text-sm uppercase tracking-[0.22em] text-muted-foreground">Enhanced prompt</p>
-            <p className="mt-3 text-sm leading-7 text-foreground/80">{promptEnhanced}</p>
-          </div>
-          {results.length > 1 ? (
-            <button
-              type="button"
-              onClick={handleDownloadZip}
-              disabled={isDownloadingZip}
-              className={cn(buttonVariants({ variant: 'outline', size: 'sm' }), 'shrink-0')}
-            >
-              {isDownloadingZip ? <LoaderCircle className="size-4 animate-spin" /> : <Download className="size-4" />}
-              {isDownloadingZip ? 'Preparing ZIP...' : 'Download ZIP'}
-            </button>
-          ) : null}
+    <section className="space-y-4">
+      {promptEnhanced ? (
+        <div
+          className="rounded-[1rem] p-4"
+          style={{ backgroundColor: '#f4f3f3' }}
+        >
+          <p className="text-[10px] font-bold uppercase tracking-[0.2em]" style={{ color: '#70787a' }}>
+            ✨ Folia prompt
+          </p>
+          <p className="mt-2 text-xs leading-6" style={{ color: '#404849' }}>{promptEnhanced}</p>
         </div>
-      </div>
-      <div className="grid gap-5 lg:grid-cols-2 2xl:grid-cols-3">
+      ) : null}
+      <div className="grid gap-4 sm:grid-cols-2">
         {results.map((result) => (
           <ResultCard key={result.r2_key} result={result} />
         ))}

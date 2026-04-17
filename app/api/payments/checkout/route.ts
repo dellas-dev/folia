@@ -23,9 +23,16 @@ export async function POST(request: Request) {
 
   try {
     if (body.currency === 'IDR') {
-      if ((body.plan === 'pro' || body.plan === 'business') && !process.env.MAYAR_PRO_PRODUCT_ID) {
+      const mayarProductIdMap = {
+        starter: process.env.MAYAR_STARTER_PRODUCT_ID,
+        pro: process.env.MAYAR_PRO_PRODUCT_ID,
+        business: process.env.MAYAR_BUSINESS_PRODUCT_ID,
+        topup: process.env.MAYAR_TOPUP_PRODUCT_ID,
+      }
+
+      if (!mayarProductIdMap[body.plan]) {
         return Response.json(
-          { error: 'Mayar subscription products are still pending verification.' },
+          { error: 'Mayar product is not configured for this plan.' },
           { status: 503 }
         )
       }

@@ -48,7 +48,7 @@ export async function getAffiliateByCode(code: string) {
     .maybeSingle()
 
   if (error) {
-    throw error
+    throw new Error(`[affiliate] getAffiliateByCode failed (${error.code}): ${error.message}`)
   }
 
   return data
@@ -67,7 +67,7 @@ export async function getOrCreateAffiliate(profile: ProfileRow) {
     .maybeSingle()
 
   if (existingError) {
-    throw existingError
+    throw new Error(`[affiliate] getOrCreateAffiliate lookup failed (${existingError.code}): ${existingError.message}`)
   }
 
   if (existing) {
@@ -106,7 +106,7 @@ export async function getOrCreateAffiliate(profile: ProfileRow) {
       continue
     }
 
-    throw error
+    throw new Error(`[affiliate] insert failed (${error.code}): ${error.message}`)
   }
 
   throw new Error('Unable to create affiliate code right now.')
@@ -120,7 +120,7 @@ export async function recordAffiliateClick(affiliate: AffiliateRow) {
     .eq('id', affiliate.id)
 
   if (error) {
-    throw error
+    throw new Error(`[affiliate] recordAffiliateClick failed (${error.code}): ${error.message}`)
   }
 }
 
@@ -134,7 +134,7 @@ export async function getAffiliateReferrals(affiliateId: string) {
     .limit(20)
 
   if (error) {
-    throw error
+    throw new Error(`[affiliate] getAffiliateReferrals failed (${error.code}): ${error.message}`)
   }
 
   const referredProfileIds = Array.from(new Set(data.map((item) => item.referred_profile_id).filter(Boolean))) as string[]
@@ -147,7 +147,7 @@ export async function getAffiliateReferrals(affiliateId: string) {
       .in('id', referredProfileIds)
 
     if (profilesError) {
-      throw profilesError
+      throw new Error(`[affiliate] profiles lookup failed (${profilesError.code}): ${profilesError.message}`)
     }
 
     for (const profile of profiles) {

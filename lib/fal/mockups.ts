@@ -1,4 +1,4 @@
-import { FAL_ENDPOINT, FAL_MODELS, getFalHeaders } from '@/lib/fal/client'
+import { FAL_ENDPOINT, FAL_MODELS, fetchFal, getFalHeaders } from '@/lib/fal/client'
 
 type FalMockupImage = {
   url: string
@@ -11,7 +11,7 @@ type GenerateMockupInput = {
 }
 
 export async function generateMockupImage(input: GenerateMockupInput) {
-  const response = await fetch(`${FAL_ENDPOINT}/${FAL_MODELS.mockup}`, {
+  const response = await fetchFal(`${FAL_ENDPOINT}/${FAL_MODELS.mockup}`, {
     method: 'POST',
     headers: getFalHeaders(),
     body: JSON.stringify({

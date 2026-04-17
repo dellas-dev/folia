@@ -2,36 +2,41 @@ import { cn } from '@/lib/utils'
 
 type FoliaLogoProps = {
   className?: string
-  markClassName?: string
-  lockupClassName?: string
-  showTagline?: boolean
+  imageClassName?: string
+  mode?: 'lockup' | 'mark'
+  tone?: 'light' | 'dark'
 }
+
+const LOGO_SOURCES = {
+  mark: '/brand_asset/logo_folia.png',
+  lockupLight: '/brand_asset/logo_folia.png',
+  lockupDark: '/brand_asset/logo_folia.png',
+} as const
 
 export function FoliaLogo({
   className,
-  markClassName,
-  lockupClassName,
-  showTagline = true,
+  imageClassName,
+  mode = 'lockup',
+  tone = 'light',
 }: FoliaLogoProps) {
+  const isMark = mode === 'mark'
+  const src = isMark
+    ? LOGO_SOURCES.mark
+    : tone === 'dark'
+      ? LOGO_SOURCES.lockupDark
+      : LOGO_SOURCES.lockupLight
+
   return (
-    <span className={cn('inline-flex items-center gap-3', className)}>
+    <span className={cn('inline-flex shrink-0 items-center', className)}>
       <img
-        src="/brand_asset/folia-logo-mark.svg"
-        alt="Folia leaf mark"
-        className={cn('size-11 rounded-2xl', markClassName)}
+        src={src}
+        alt={isMark ? 'Folia leaf mark' : 'Folia'}
+        className={cn(
+          'block h-11 w-auto object-contain select-none',
+          isMark && 'size-11',
+          imageClassName
+        )}
       />
-      <span className={cn('min-w-0', lockupClassName)}>
-        <img
-          src="/brand_asset/folia-logo-primary.svg"
-          alt="Folia"
-          className="h-8 w-auto object-contain"
-        />
-        {showTagline ? (
-          <span className="mt-1 block text-[11px] uppercase tracking-[0.22em] text-muted-foreground">
-            AI clipart generator
-          </span>
-        ) : null}
-      </span>
     </span>
   )
 }

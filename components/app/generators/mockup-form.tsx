@@ -2,12 +2,10 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { AlertCircle, AlertTriangle, CreditCard, LoaderCircle, Lock, Sparkles, Upload } from 'lucide-react'
+import { AlertCircle, AlertTriangle, CreditCard, Download, LoaderCircle, Lock, Sparkles, Upload } from 'lucide-react'
 
-
-import { buttonVariants } from '@/components/ui/button'
 import { useToast } from '@/components/ui/toast-provider'
-import { trackClientEvent } from '@/lib/analytics/client'
+import { downloadRemoteFile } from '@/lib/download'
 import { cn } from '@/lib/utils'
 import { MOCKUP_SCENE_OPTIONS, type MockupScenePreset, type UserTier } from '@/types'
 
@@ -20,16 +18,12 @@ type MockupFormProps = {
 
 type MockupResponse = {
   generation_id: string
-  result: {
-    r2_key: string
-    signed_url: string
-  }
+  result: { r2_key: string; signed_url: string }
   scene_prompt_used: string
   credits_remaining: number
 }
 
 export function MockupForm({ tier, startingCredits, initialInvitationKey, initialPreviewUrl }: MockupFormProps) {
-  const { toast } = useToast()
   const [invitationKey, setInvitationKey] = useState<string | null>(initialInvitationKey ?? null)
   const [invitationName, setInvitationName] = useState<string | null>(initialInvitationKey ? 'From Elements' : null)
   const [invitationPreviewUrl, setInvitationPreviewUrl] = useState<string | null>(initialPreviewUrl ?? null)
@@ -40,89 +34,108 @@ export function MockupForm({ tier, startingCredits, initialInvitationKey, initia
   const [error, setError] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  const [isExporting, setIsExporting] = useState(false)
+  const { toast } = useToast()
 
   const canUseMockups = (tier === 'pro' || tier === 'business') && credits > 0
+  const visibleSceneOptions = MOCKUP_SCENE_OPTIONS.slice(0, 3)
+  const isAutoMode = scenePreset === null
 
+  /* ── Upgrade wall ─────────────────────────────────────────── */
   if (!canUseMockups) {
     return (
-      <section className="rounded-[2rem] border border-border/70 bg-card/90 p-8 shadow-sm shadow-black/5">
-        <div className="max-w-3xl space-y-5">
-          <div className="inline-flex items-center gap-2 rounded-full bg-secondary px-4 py-2 text-sm text-muted-foreground">
+      <div className="pb-8">
+        <div className="mb-6 px-1">
+          <p className="text-[10px] font-bold uppercase tracking-[0.18em]" style={{ color: '#70787a' }}>Mockup Generator</p>
+          <h1 className="mt-1 text-3xl font-bold" style={{ fontFamily: 'var(--font-heading)', color: '#1a1c1c', letterSpacing: '-0.02em' }}>
+            Mockup Generator
+          </h1>
+        </div>
+        <div
+          className="rounded-[1.5rem] p-7 space-y-6"
+          style={{ backgroundColor: '#ffffff', boxShadow: '0 2px 8px rgba(55,101,107,0.05), 0 12px 32px rgba(55,101,107,0.05)' }}
+        >
+          <span
+            className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold"
+            style={{ backgroundColor: '#eeeeee', color: '#70787a' }}
+          >
             <Lock className="size-4" />
             Pro and Business only
-          </div>
-          <div className="space-y-3">
-            <h1 className="text-4xl font-semibold text-foreground sm:text-5xl">Mockup Generator is gated behind a paid growth tier.</h1>
-            <p className="max-w-2xl text-base leading-8 text-muted-foreground">
-              Uploading invitation artwork into styled Etsy-ready scenes is reserved for Pro and Business. Starter users and zero-credit accounts see the upgrade wall here by design.
+          </span>
+
+          <div className="space-y-2">
+            <h2 className="text-2xl font-bold" style={{ fontFamily: 'var(--font-heading)', color: '#1a1c1c' }}>
+              Upgrade to unlock Mockup Generator
+            </h2>
+            <p className="max-w-xl text-sm leading-7" style={{ color: '#70787a' }}>
+              Place your clipart into styled lifestyle scenes to create Etsy-ready listing images. Available on Pro and Business plans.
             </p>
           </div>
-          <div className="grid gap-4 md:grid-cols-3">
+
+          <div className="grid gap-4 sm:grid-cols-3">
             {MOCKUP_SCENE_OPTIONS.map((scene) => (
-              <div key={scene.id} className="rounded-[1.6rem] border border-border/70 bg-background p-4 opacity-80">
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-2xl">{scene.emoji}</span>
-                  <span className="rounded-full bg-secondary px-2 py-1 text-[11px] uppercase tracking-[0.2em] text-muted-foreground">
-                    {scene.accessLevel === 'all' ? 'Base' : 'Advanced'}
-                  </span>
-                </div>
-                <h3 className="mt-4 text-xl font-semibold text-foreground">{scene.label}</h3>
-                <p className="mt-2 text-sm leading-6 text-muted-foreground">{scene.description}</p>
+              <div
+                key={scene.id}
+                className="rounded-[1.25rem] p-4 opacity-80"
+                style={{ backgroundColor: '#f4f3f3' }}
+              >
+                <span className="text-2xl">{scene.emoji}</span>
+                <h3 className="mt-3 text-sm font-bold" style={{ color: '#1a1c1c', fontFamily: 'var(--font-heading)' }}>
+                  {scene.label}
+                </h3>
+                <p className="mt-1 text-xs leading-5" style={{ color: '#70787a' }}>{scene.description}</p>
               </div>
             ))}
           </div>
+
           <div className="flex flex-wrap gap-3">
-            <Link href="/pricing" className={cn(buttonVariants({ size: 'lg' }))}>
+            <Link
+              href="/settings/billing"
+              className="inline-flex h-11 items-center gap-2 rounded-full px-6 text-sm font-bold text-white"
+              style={{ background: 'linear-gradient(135deg, #37656b, #507e84)' }}
+            >
               <CreditCard className="size-4" />
               Upgrade to Pro
             </Link>
-            <Link href="/dashboard" className={cn(buttonVariants({ variant: 'outline', size: 'lg' }))}>
+            <Link
+              href="/dashboard"
+              className="inline-flex h-11 items-center rounded-full px-6 text-sm font-semibold transition-colors hover:bg-[#eeeeee]"
+              style={{ backgroundColor: '#f4f3f3', color: '#404849' }}
+            >
               Back to dashboard
             </Link>
           </div>
         </div>
-      </section>
+      </div>
     )
   }
 
+  /* ── Upload handler ───────────────────────────────────────── */
   async function uploadInvitation(file: File) {
     setUploading(true)
     setError(null)
-
-    const previewUrl = URL.createObjectURL(file)
-    setInvitationPreviewUrl(previewUrl)
+    setInvitationPreviewUrl(URL.createObjectURL(file))
 
     try {
       const formData = new FormData()
       formData.append('file', file)
       formData.append('purpose', 'invitation')
 
-      const response = await fetch('/api/upload', {
-        method: 'POST',
-        body: formData,
-      })
-
+      const response = await fetch('/api/upload', { method: 'POST', body: formData })
       const data = await response.json() as { error?: string; r2_key?: string }
 
-      if (!response.ok || !data.r2_key) {
-        throw new Error(data.error || 'Invitation upload failed.')
-      }
+      if (!response.ok || !data.r2_key) throw new Error(data.error || 'Upload failed.')
 
       setInvitationKey(data.r2_key)
       setInvitationName(file.name)
-    } catch (uploadError) {
-      const message = uploadError instanceof Error ? uploadError.message : 'Invitation upload failed.'
-      setError(message)
-      toast({
-        tone: 'error',
-        title: 'Invitation upload failed',
-        description: message,
-      })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Upload failed.')
     } finally {
       setUploading(false)
     }
   }
 
+  /* ── Submit handler ───────────────────────────────────────── */
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setSubmitting(true)
@@ -140,252 +153,304 @@ export function MockupForm({ tier, startingCredits, initialInvitationKey, initia
       })
 
       const data = await response.json() as MockupResponse & { error?: string }
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Mockup generation failed.')
-      }
+      if (!response.ok) throw new Error(data.error || 'Mockup generation failed.')
 
       setResultUrl(data.result.signed_url)
       setCredits(data.credits_remaining)
-      trackClientEvent('generation_created', {
-        generation_type: 'mockup',
-        scene_mode: scenePreset ?? 'auto',
-      })
-      toast({
-        tone: 'success',
-        title: 'Mockup generated',
-        description: 'Your listing mockup is ready to review and download.',
-      })
-    } catch (submitError) {
-      const message = submitError instanceof Error ? submitError.message : 'Mockup generation failed.'
-      setError(message)
-      toast({
-        tone: 'error',
-        title: 'Mockup generation failed',
-        description: message,
-      })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Mockup generation failed.')
     } finally {
       setSubmitting(false)
     }
   }
 
-  const isAutoMode = scenePreset === null
+  async function handleExport() {
+    if (!resultUrl) return
+
+    try {
+      setIsExporting(true)
+      await downloadRemoteFile(resultUrl, 'folia-mockup.png')
+    } catch (err) {
+      toast({
+        title: 'Export failed',
+        description: err instanceof Error ? err.message : 'Please try again.',
+        tone: 'error',
+      })
+    } finally {
+      setIsExporting(false)
+    }
+  }
 
   return (
-    <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
-      <form onSubmit={handleSubmit} className="space-y-6 rounded-[2rem] border border-border/70 bg-card/90 p-6 shadow-sm shadow-black/5 sm:p-8">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <p className="text-sm uppercase tracking-[0.24em] text-muted-foreground">Mockup generator</p>
-            <h1 className="mt-2 text-3xl font-semibold text-foreground sm:text-4xl">Turn invitation artwork into Etsy-ready listing scenes.</h1>
-            <p className="mt-3 max-w-2xl text-sm leading-7 text-muted-foreground">
-              Upload your finished invitation — Folia AI reads the design and creates a matching realistic scene automatically. Or pick a preset.
-            </p>
-          </div>
-          <div className="rounded-2xl border border-border/70 bg-background px-4 py-3 text-sm">
-            <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Credits left</p>
-            <p className="mt-1 text-2xl font-semibold text-foreground">{credits}</p>
-          </div>
-        </div>
+    <div className="pb-8">
+      {/* Page heading */}
+      <div className="mb-6 px-1">
+        <p className="text-[10px] font-bold uppercase tracking-[0.18em]" style={{ color: '#70787a' }}>
+          Mockup Generator
+        </p>
+        <h1
+          className="mt-1 text-3xl font-bold"
+          style={{ fontFamily: 'var(--font-heading)', color: '#1a1c1c', letterSpacing: '-0.02em' }}
+        >
+          Create Mockups
+        </h1>
+      </div>
 
-        {/* Invitation upload */}
-        <div className="space-y-3">
-          <div className="flex items-center justify-between gap-3">
-            <label htmlFor="invitation-file" className="text-sm font-medium text-foreground">Invitation design</label>
-            <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">PNG, JPG, WEBP</p>
-          </div>
-          <label className={cn(
-            'flex min-h-40 cursor-pointer flex-col items-center justify-center rounded-[1.6rem] border border-dashed border-border bg-card/60 px-5 py-6 text-center transition-colors',
-            uploading && 'cursor-wait opacity-70'
-          )}>
-            <input
-              id="invitation-file"
-              type="file"
-              accept="image/png,image/jpeg,image/webp"
-              className="sr-only"
-              disabled={uploading || submitting}
-              onChange={async (event) => {
-                const file = event.target.files?.[0]
-                if (!file) return
-                await uploadInvitation(file)
-                event.target.value = ''
-              }}
-            />
-            {uploading
-              ? <LoaderCircle className="size-6 animate-spin text-primary" />
-              : <Upload className="size-6 text-primary" />}
-            <p className="mt-3 text-sm font-medium text-foreground">Upload the flat invitation design you want to showcase.</p>
-            <p className="mt-2 text-xs leading-6 text-muted-foreground">One mockup costs 1 credit.</p>
-          </label>
+      <div className="grid gap-5 xl:grid-cols-[380px_1fr] xl:items-start">
 
-          {/* Invitation preview thumbnail */}
-          {invitationPreviewUrl && invitationKey ? (
-            <div className="flex flex-col items-start gap-4 rounded-2xl border border-border/70 bg-background px-4 py-3 sm:flex-row sm:items-center">
-              <img
-                src={invitationPreviewUrl}
-                alt="Invitation preview"
-                className="h-[72px] w-auto rounded-xl border border-border/50 object-contain"
-              />
-              <div className="min-w-0">
-                <p className="max-w-full truncate text-sm font-medium text-foreground sm:max-w-[220px]">{invitationName}</p>
-                <p className="mt-1 text-[11px] text-muted-foreground">Folia AI will analyze this invitation automatically</p>
+        {/* ── Left: Form ────────────────────────────────────── */}
+        <div
+          className="rounded-[1.5rem] p-5"
+          style={{
+            backgroundColor: '#ffffff',
+            boxShadow: '0 2px 8px rgba(55,101,107,0.05), 0 12px 32px rgba(55,101,107,0.05)',
+          }}
+        >
+          <form onSubmit={handleSubmit} className="space-y-6">
+
+            {/* Scene selector */}
+            <div className="space-y-2.5">
+              <p className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: '#70787a' }}>
+                Select Scene
+              </p>
+              <div className="overflow-x-auto">
+                <div className="flex gap-2.5 pb-1">
+                  {visibleSceneOptions.map((scene) => {
+                    const active = scene.id === scenePreset
+                    return (
+                      <button
+                        key={scene.id}
+                        type="button"
+                        onClick={() => setScenePreset(scene.id)}
+                        className={cn(
+                          'group w-[120px] shrink-0 overflow-hidden rounded-[1rem] text-left transition-all duration-200',
+                          active
+                            ? 'shadow-[0_0_0_2px_#37656b,0_4px_16px_rgba(55,101,107,0.15)]'
+                            : 'shadow-[0_2px_8px_rgba(55,101,107,0.06)] hover:-translate-y-0.5'
+                        )}
+                        style={{ backgroundColor: '#ffffff' }}
+                      >
+                        <div
+                          className="flex h-20 items-center justify-center"
+                          style={{ backgroundColor: '#f4f3f3' }}
+                        >
+                          <span className="text-4xl">{scene.emoji}</span>
+                        </div>
+                        <div className="px-2.5 py-2 text-center">
+                          <p
+                            className="text-xs font-semibold"
+                            style={{ color: active ? '#37656b' : '#1a1c1c' }}
+                          >
+                            {scene.label}
+                          </p>
+                        </div>
+                      </button>
+                    )
+                  })}
+
+                  {/* Auto mode */}
+                  <button
+                    type="button"
+                    onClick={() => setScenePreset(null)}
+                    className={cn(
+                      'flex size-10 shrink-0 items-center justify-center self-center rounded-full transition-colors'
+                    )}
+                    style={{
+                      backgroundColor: isAutoMode ? '#37656b' : '#eeeeee',
+                      color: isAutoMode ? '#ffffff' : '#70787a',
+                    }}
+                    aria-label="Auto scene matching"
+                  >
+                    <Sparkles className="size-4" />
+                  </button>
+                </div>
               </div>
             </div>
-          ) : null}
-        </div>
 
-        {/* Scene preset selector */}
-        <div className="space-y-3">
-          <div className="flex items-center justify-between gap-3">
-            <p className="text-sm font-medium text-foreground">Scene style</p>
-            <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Auto or preset</p>
-          </div>
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-
-            {/* AUTO option — recommended, default */}
-            <button
-              type="button"
-              onClick={() => setScenePreset(null)}
-              className={cn(
-                'rounded-[1.5rem] border p-4 text-left transition-colors',
-                isAutoMode
-                  ? 'border-emerald-500/50 bg-emerald-50/60 dark:bg-emerald-950/20'
-                  : 'border-border/70 bg-background hover:bg-accent/50'
-              )}
-            >
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-2xl">✨</span>
-                <span className={cn(
-                  'rounded-full px-2 py-1 text-[11px] uppercase tracking-[0.2em]',
-                  isAutoMode
-                    ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400'
-                    : 'bg-secondary text-muted-foreground'
-                )}>
-                  Recommended
+            {/* Design upload */}
+            <div className="space-y-2.5">
+              <div className="flex items-center justify-between">
+                <label htmlFor="invitation-file" className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: '#70787a' }}>
+                  Your Design
+                </label>
+                <span className="text-[10px] uppercase tracking-[0.16em]" style={{ color: '#c0c8c9' }}>
+                  JPG, PNG, SVG
                 </span>
               </div>
-              <h3 className="mt-4 text-lg font-semibold text-foreground">Auto — Match my invitation</h3>
-              <p className="mt-2 text-sm leading-6 text-muted-foreground">Folia AI reads your design and creates the perfect scene automatically.</p>
-            </button>
-
-            {/* Preset options */}
-            {MOCKUP_SCENE_OPTIONS.map((scene) => {
-              const active = scene.id === scenePreset
-
-              return (
-                <button
-                  key={scene.id}
-                  type="button"
-                  onClick={() => setScenePreset(scene.id)}
-                  className={cn(
-                    'rounded-[1.5rem] border p-4 text-left transition-colors',
-                    active ? 'border-primary bg-primary/8' : 'border-border/70 bg-background hover:bg-accent/50'
-                  )}
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="text-2xl">{scene.emoji}</span>
-                    <span className={cn(
-                      'rounded-full px-2 py-1 text-[11px] uppercase tracking-[0.2em]',
-                      scene.accessLevel === 'all' ? 'bg-secondary text-muted-foreground' : 'bg-[#D4A843] text-[#2C2C2A]'
-                    )}>
-                      {scene.accessLevel === 'all' ? 'All' : 'Pro+'}
-                    </span>
-                  </div>
-                  <h3 className="mt-4 text-lg font-semibold text-foreground">{scene.label}</h3>
-                  <p className="mt-2 text-sm leading-6 text-muted-foreground">{scene.description}</p>
-                </button>
-              )
-            })}
-          </div>
-        </div>
-
-        {/* AI analysis banner — shown when AUTO + invitation uploaded */}
-        {isAutoMode && invitationKey ? (
-          <div className="flex items-start gap-3 rounded-2xl border border-emerald-500/25 bg-emerald-50/50 px-4 py-3 dark:bg-emerald-950/20">
-            <Sparkles className="mt-0.5 size-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
-            <p className="text-sm text-emerald-800 dark:text-emerald-300">
-              Folia AI will automatically analyze your invitation and create a matching realistic scene.
-            </p>
-          </div>
-        ) : null}
-
-        {/* Custom details — only shown in AUTO mode */}
-        {isAutoMode ? (
-          <div className="space-y-3">
-            <div className="flex items-center justify-between gap-3">
-              <label htmlFor="custom-details" className="text-sm font-medium text-foreground">
-                Add custom details <span className="font-normal text-muted-foreground">(optional)</span>
+              <label
+                className={cn('flex min-h-28 cursor-pointer flex-col items-center justify-center gap-2 rounded-[1rem] px-5 py-5 text-center transition-all', uploading && 'cursor-wait opacity-60')}
+                style={{ border: '1.5px dashed rgba(192,200,201,0.7)', backgroundColor: '#f4f3f3' }}
+                onMouseEnter={(e) => { if (!uploading) { e.currentTarget.style.borderColor = 'rgba(55,101,107,0.5)'; e.currentTarget.style.backgroundColor = 'rgba(55,101,107,0.02)' } }}
+                onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'rgba(192,200,201,0.7)'; e.currentTarget.style.backgroundColor = '#f4f3f3' }}
+              >
+                <input
+                  id="invitation-file"
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  className="sr-only"
+                  disabled={uploading || submitting}
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0]
+                    if (!file) return
+                    await uploadInvitation(file)
+                    e.target.value = ''
+                  }}
+                />
+                {uploading
+                  ? <LoaderCircle className="size-5 animate-spin" style={{ color: '#37656b' }} />
+                  : <Upload className="size-5" style={{ color: '#37656b' }} />
+                }
+                <p className="text-xs font-medium" style={{ color: '#404849' }}>
+                  Click to upload your art
+                </p>
+                <p className="text-[10px]" style={{ color: '#c0c8c9' }}>or drag and drop here</p>
               </label>
+
+              {invitationPreviewUrl && invitationKey ? (
+                <div
+                  className="flex items-center gap-3 rounded-[0.875rem] p-3"
+                  style={{ backgroundColor: '#d1e3e6' }}
+                >
+                  <img
+                    src={invitationPreviewUrl}
+                    alt="Design preview"
+                    className="h-14 w-auto rounded-lg object-contain"
+                  />
+                  <div className="min-w-0">
+                    <p className="truncate text-xs font-semibold" style={{ color: '#37656b' }}>{invitationName}</p>
+                    <p className="mt-0.5 text-[10px]" style={{ color: '#516164' }}>Ready to use in mockup</p>
+                  </div>
+                </div>
+              ) : null}
             </div>
-            <input
-              id="custom-details"
-              type="text"
-              value={customDetails}
-              onChange={(e) => setCustomDetails(e.target.value)}
-              placeholder="e.g. add candles, outdoor garden setting, rustic wooden table..."
-              className="w-full rounded-[1.4rem] border border-input bg-background px-4 py-3 text-sm outline-none transition-colors placeholder:text-muted-foreground/70 focus:border-primary focus:ring-3 focus:ring-primary/15"
-            />
-            <p className="text-xs leading-5 text-muted-foreground">
-              Folia AI will incorporate your details into the scene.
-            </p>
-          </div>
-        ) : null}
 
-        {error ? (
-          <div className="flex items-start gap-3 rounded-2xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-            <AlertCircle className="mt-0.5 size-4 shrink-0" />
-            <p>{error}</p>
-          </div>
-        ) : null}
+            {/* Auto mode hint */}
+            {isAutoMode && invitationKey ? (
+              <div
+                className="flex items-start gap-3 rounded-[0.875rem] px-4 py-3 text-xs"
+                style={{ backgroundColor: 'rgba(55,101,107,0.07)', color: '#37656b' }}
+              >
+                <Sparkles className="mt-0.5 size-3.5 shrink-0" />
+                <p>Folia will analyze your design and automatically create a matching realistic scene.</p>
+              </div>
+            ) : null}
 
-        {credits > 0 && credits <= 5 ? (
-          <div className="flex items-start gap-3 rounded-2xl border border-amber-500/30 bg-amber-50/60 px-4 py-3 text-sm dark:bg-amber-950/20">
-            <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400" />
-            <p className="text-amber-800 dark:text-amber-300">
-              Only <strong>{credits}</strong> credit{credits === 1 ? '' : 's'} remaining.{' '}
-              <Link href="/settings/billing" className="underline underline-offset-2">Top up</Link> to keep generating.
-            </p>
-          </div>
-        ) : null}
+            {/* Custom details (auto mode) */}
+            {isAutoMode ? (
+              <div className="space-y-2.5">
+                <label htmlFor="custom-details" className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: '#70787a' }}>
+                  Custom Details{' '}
+                  <span className="font-normal normal-case tracking-normal" style={{ color: '#c0c8c9' }}>(optional)</span>
+                </label>
+                <input
+                  id="custom-details"
+                  type="text"
+                  value={customDetails}
+                  onChange={(e) => setCustomDetails(e.target.value)}
+                  placeholder="e.g. candles, outdoor garden, rustic wooden table..."
+                  className="w-full rounded-[0.875rem] px-4 py-3 text-sm outline-none transition-all"
+                  style={{ backgroundColor: '#f4f3f3', color: '#1a1c1c', border: '1.5px solid transparent' }}
+                  onFocus={(e) => { e.currentTarget.style.borderColor = 'rgba(55,101,107,0.4)'; e.currentTarget.style.backgroundColor = '#ffffff'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(55,101,107,0.08)' }}
+                  onBlur={(e) => { e.currentTarget.style.borderColor = 'transparent'; e.currentTarget.style.backgroundColor = '#f4f3f3'; e.currentTarget.style.boxShadow = 'none' }}
+                />
+              </div>
+            ) : null}
 
-        <div className="flex flex-wrap items-center gap-4">
-          <button
-            type="submit"
-            disabled={!invitationKey || uploading || submitting}
-            className={cn(buttonVariants({ size: 'lg' }), 'w-full sm:w-auto')}
-          >
-            {submitting ? <LoaderCircle className="size-4 animate-spin" /> : <Sparkles className="size-4 text-[#D4A843]" />}
-            {submitting ? 'Generating mockup...' : 'Generate mockup'}
-          </button>
-          {!submitting ? (
-            <p className="text-xs text-muted-foreground">Will use <strong>1</strong> credit</p>
-          ) : null}
+            {/* Alerts */}
+            {error ? (
+              <div className="flex items-start gap-3 rounded-[0.875rem] px-4 py-3 text-sm" style={{ backgroundColor: 'rgba(186,26,26,0.06)', color: '#ba1a1a' }}>
+                <AlertCircle className="mt-0.5 size-4 shrink-0" />
+                <p>{error}</p>
+              </div>
+            ) : null}
+
+            {credits > 0 && credits <= 5 ? (
+              <div className="flex items-start gap-3 rounded-[0.875rem] px-4 py-3 text-sm" style={{ backgroundColor: 'rgba(128,84,59,0.08)', color: '#80543b' }}>
+                <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+                <p>Only <strong>{credits}</strong> credit{credits === 1 ? '' : 's'} remaining. <Link href="/settings/billing" className="font-semibold underline underline-offset-2">Top up</Link></p>
+              </div>
+            ) : null}
+
+            {/* Generate */}
+            <div className="space-y-2">
+              <button
+                type="submit"
+                disabled={!invitationKey || uploading || submitting}
+                className="flex h-12 w-full items-center justify-center gap-2.5 rounded-full text-sm font-bold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+                style={{ background: 'linear-gradient(135deg, #37656b, #507e84)', boxShadow: '0 4px 16px rgba(55,101,107,0.3)' }}
+              >
+                {submitting ? <LoaderCircle className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
+                {submitting ? 'Folia is generating your mockup...' : 'Regenerate Mockup'}
+              </button>
+              {!submitting ? (
+                <p className="text-center text-[10px] uppercase tracking-[0.16em]" style={{ color: '#c0c8c9' }}>
+                  Uses <strong style={{ color: '#70787a' }}>1</strong> credit
+                </p>
+              ) : null}
+            </div>
+          </form>
         </div>
-      </form>
 
-      <section className="rounded-[2rem] border border-border/70 bg-card/85 p-6 shadow-sm shadow-black/5">
-        {resultUrl ? (
-          <div className="space-y-5">
-            <div>
-              <p className="text-sm uppercase tracking-[0.22em] text-muted-foreground">Mockup result</p>
-              <h2 className="mt-2 text-3xl font-semibold text-foreground">Your listing image is ready.</h2>
+        {/* ── Right: Preview ────────────────────────────────── */}
+        <div
+          className="flex min-h-[400px] flex-col rounded-[1.5rem] p-5"
+          style={{ backgroundColor: '#f4f3f3' }}
+        >
+          {resultUrl ? (
+            <div className="flex h-full flex-col gap-4">
+              <div
+                className="flex-1 overflow-hidden rounded-[1rem] p-2"
+                style={{ backgroundColor: '#ffffff', boxShadow: '0 2px 8px rgba(55,101,107,0.06)' }}
+              >
+                <img
+                  src={resultUrl}
+                  alt="Generated mockup"
+                  className="h-full w-full rounded-[0.75rem] object-cover"
+                  style={{ minHeight: '280px' }}
+                />
+              </div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.18em]" style={{ color: '#70787a' }}>
+                Perspective Render
+              </p>
+              <div className="mt-auto flex gap-2.5">
+                <button
+                  type="button"
+                  onClick={handleExport}
+                  disabled={isExporting}
+                  className="flex h-11 flex-1 items-center justify-center gap-2 rounded-full text-sm font-bold text-white transition-opacity hover:opacity-90"
+                  style={{ background: 'linear-gradient(135deg, #37656b, #507e84)' }}
+                >
+                  {isExporting ? <LoaderCircle className="size-4 animate-spin" /> : <Download className="size-4" />}
+                  {isExporting ? 'Exporting...' : 'Export PNG'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setResultUrl(null)}
+                  className="flex h-11 flex-1 items-center justify-center gap-2 rounded-full text-sm font-semibold transition-colors hover:bg-[#eeeeee]"
+                  style={{ backgroundColor: '#ffffff', color: '#404849' }}
+                >
+                  <Sparkles className="size-4" />
+                  Regenerate
+                </button>
+              </div>
             </div>
-            <div className="overflow-hidden rounded-[1.6rem] bg-[linear-gradient(135deg,oklch(0.97_0.01_84),oklch(0.93_0.03_145))] p-4">
-              <img src={resultUrl} alt="Generated invitation mockup" className="w-full rounded-[1.2rem] object-cover" />
+          ) : (
+            <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
+              <div className="flex size-14 items-center justify-center rounded-full" style={{ backgroundColor: '#eeeeee' }}>
+                <Upload className="size-6" style={{ color: '#c0c8c9' }} />
+              </div>
+              <div>
+                <p className="text-sm font-semibold" style={{ color: '#404849', fontFamily: 'var(--font-heading)' }}>
+                  Mockup Preview
+                </p>
+                <p className="mt-1 text-xs leading-5" style={{ color: '#70787a' }}>
+                  Choose a scene and upload your design to see the result here.
+                </p>
+              </div>
             </div>
-            <a href={resultUrl} download className={cn(buttonVariants({ size: 'lg' }))}>
-              Download mockup
-            </a>
-          </div>
-        ) : (
-          <div className="flex h-full min-h-[24rem] flex-col justify-center rounded-[1.6rem] border border-dashed border-border/70 bg-background/60 p-8 text-center">
-            <h2 className="text-3xl font-semibold text-foreground">Your mockup preview will appear here.</h2>
-            <p className="mt-3 text-sm leading-7 text-muted-foreground">
-              Upload an invitation design, choose Auto or a preset scene, and Folia will return one polished listing image.
-            </p>
-          </div>
-        )}
-      </section>
+          )}
+        </div>
+      </div>
     </div>
   )
 }

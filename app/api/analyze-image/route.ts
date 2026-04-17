@@ -1,5 +1,5 @@
 import { getCurrentProfile } from '@/lib/clerk/auth'
-import { analyzeReferenceImage } from '@/lib/ai/enhancer'
+import { analyzeReferenceImage } from '@/lib/gemini/enhancer'
 import { getSignedR2Url, isOwnedR2Key } from '@/lib/r2/client'
 
 export async function POST(request: Request) {
@@ -15,7 +15,7 @@ export async function POST(request: Request) {
     return Response.json({ error: 'r2_key is required' }, { status: 422 })
   }
 
-  if (!isOwnedR2Key(user.id, body.r2_key, ['uploads'])) {
+  if (!isOwnedR2Key(body.r2_key, user.id)) {
     return Response.json({ error: 'Forbidden' }, { status: 403 })
   }
 
@@ -32,12 +32,6 @@ export async function POST(request: Request) {
     const mimeType = imageResponse.headers.get('content-type') || 'image/png'
 
     const suggestedPrompt = await analyzeReferenceImage(base64, mimeType)
-
-    console.log('=== GROQ OUTPUT ===')
-    console.log('Mode: A (analyze reference image)')
-    console.log('Enhanced prompt:', suggestedPrompt)
-    console.log('Word count:', suggestedPrompt.split(' ').length)
-    console.log('===================')
 
     return Response.json({ suggested_prompt: suggestedPrompt })
   } catch (error: any) {

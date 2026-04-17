@@ -36,8 +36,8 @@ export const marketingCopy = {
           body: 'Describe the element you need, or upload your invitation design when you want a polished mockup scene.',
         },
         {
-          title: 'Download PNG',
-          body: 'Save clean commercial-ready outputs for your listing images, printable packs, and product bundles.',
+          title: 'Download JPG or remove background',
+          body: 'Element generation gives you clean JPG artwork on a white background, then Remove BG converts it into a transparent PNG when needed.',
         },
       ],
     },
@@ -114,7 +114,7 @@ export const marketingCopy = {
       eyebrow: 'FAQ',
       items: [
         ['Who is Folia built for?', 'Folia is designed for Etsy sellers, invitation designers, printable creators, and digital product studios that need fresh visual assets quickly.'],
-        ['Do I get transparent PNG outputs?', 'Element generations are designed for transparent PNG-style workflows so they can fit into invitations, stickers, and product listings.'],
+        ['Do I get transparent PNG outputs?', 'Elements are generated as JPG images on a white background. Use Remove BG when you need a transparent PNG for invitations, stickers, and product listings.'],
         ['Can I generate mockups too?', 'Yes. Pro and Business plans include invitation mockup tools so you can turn flat designs into styled listing images.'],
         ['Is there a free tier?', 'No. Folia starts with a paid entry tier to reduce abuse and keep credits focused on serious sellers.'],
       ],
@@ -164,8 +164,8 @@ export const marketingCopy = {
           body: 'Deskripsikan elemen yang dibutuhkan, atau unggah desain undangan saat Anda ingin membuat mockup scene yang lebih polished.',
         },
         {
-          title: 'Unduh PNG',
-          body: 'Simpan hasil siap pakai untuk listing, printable pack, dan bundle produk digital Anda.',
+          title: 'Unduh JPG atau hapus background',
+          body: 'Generator elemen memberi hasil JPG dengan background putih, lalu Remove BG mengubahnya menjadi PNG transparan saat dibutuhkan.',
         },
       ],
     },
@@ -242,7 +242,7 @@ export const marketingCopy = {
       eyebrow: 'FAQ',
       items: [
         ['Folia dibuat untuk siapa?', 'Folia dibuat untuk penjual Etsy, desainer undangan, pembuat printable, dan studio produk digital yang butuh aset visual baru dengan cepat.'],
-        ['Apakah hasilnya PNG transparan?', 'Hasil element generation dirancang untuk workflow PNG transparan sehingga mudah dipakai di undangan, stiker, dan listing produk.'],
+        ['Apakah hasilnya PNG transparan?', 'Hasil element generation berupa JPG dengan background putih. Gunakan Remove BG jika Anda butuh PNG transparan untuk undangan, stiker, dan listing produk.'],
         ['Apakah saya bisa buat mockup juga?', 'Bisa. Paket Pro dan Business mencakup tools mockup undangan agar desain datar bisa diubah menjadi gambar listing yang lebih menarik.'],
         ['Apakah ada paket gratis?', 'Tidak. Folia mulai dari paket berbayar untuk mengurangi abuse dan menjaga credits tetap fokus ke seller yang serius.'],
       ],

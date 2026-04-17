@@ -1,5 +1,3 @@
-import { getAffiliateRewardForPlan, normalizeAffiliateCode } from '@/lib/affiliate'
-import { trackServerEvent } from '@/lib/analytics/server'
 import { createServerClient } from '@/lib/supabase/server'
 import { PLANS } from '@/lib/plans'
 import type { Database } from '@/types/database.types'
@@ -24,20 +22,12 @@ type ApplyPaymentInput = {
   paymentStatus?: 'pending' | 'success' | 'failed' | 'refunded'
 }
 
-async function getExistingPurchase(paymentId: string, provider: PaymentProvider) {
-  const supabase = createServerClient()
-  const { data, error } = await supabase
-    .from('purchases')
-    .select('*')
-    .eq('payment_id', paymentId)
-    .eq('payment_provider', provider)
-    .maybeSingle()
-
-  if (error) {
-    throw error
-  }
-
-  return data
+type AppliedPaymentResult = {
+  profile: Database['public']['Tables']['profiles']['Row']
+  creditsAdded: number
+  newCredits: number
+  plan: PaymentPlan
+  alreadyProcessed: boolean
 }
 
 async function getProfileByIdentity(clerkUserId?: string | null, email?: string | null) {
@@ -54,37 +44,6 @@ async function getProfileByIdentity(clerkUserId?: string | null, email?: string 
   }
 
   return null
-}
-
-async function awardAffiliateCredits({
-  referredProfile,
-  plan,
-}: {
-  referredProfile: Database['public']['Tables']['profiles']['Row']
-  plan: PaymentPlan
-}) {
-  const referredByCode = normalizeAffiliateCode(referredProfile.referred_by_code)
-  const creditsAwarded = getAffiliateRewardForPlan(plan)
-
-  if (!referredByCode || creditsAwarded <= 0) {
-    return null
-  }
-
-  const supabase = createServerClient()
-  const { data, error } = await (supabase as typeof supabase & {
-    rpc: (fn: string, args: Record<string, unknown>) => Promise<{ data: boolean | null; error: { message: string } | null }>
-  }).rpc('award_affiliate_referral', {
-    referred_by_code_input: referredByCode,
-    referred_profile_id_input: referredProfile.id,
-    plan_input: plan,
-    credits_awarded_input: creditsAwarded,
-  })
-
-  if (error) {
-    throw error
-  }
-
-  return data ? { creditsAwarded } : null
 }
 
 export async function recordPaymentEventIfNew(eventId: string, provider: PaymentProvider, type: string) {
@@ -107,28 +66,111 @@ export async function recordPaymentEventIfNew(eventId: string, provider: Payment
   throw error
 }
 
-export async function applyPaymentToProfile(input: ApplyPaymentInput) {
-  const existingPurchase = await getExistingPurchase(input.paymentId, input.provider)
+export async function releasePaymentEvent(eventId: string) {
+  const supabase = createServerClient()
+  const { error } = await supabase.from('payment_events').delete().eq('id', eventId)
 
-  if (existingPurchase) {
-    const profile = await getProfileByIdentity(input.clerkUserId, input.email)
+  if (error) {
+    throw error
+  }
+}
 
-    if (!profile) {
-      throw new Error('No matching profile found for payment event.')
+export async function processPaymentEventOnce<T>({
+  eventId,
+  provider,
+  type,
+  handler,
+}: {
+  eventId: string
+  provider: PaymentProvider
+  type: string
+  handler: () => Promise<T>
+}) {
+  const isNew = await recordPaymentEventIfNew(eventId, provider, type)
+
+  if (!isNew) {
+    return { duplicate: true as const }
+  }
+
+  try {
+    const result = await handler()
+    return { duplicate: false as const, result }
+  } catch (error) {
+    try {
+      await releasePaymentEvent(eventId)
+    } catch (releaseError) {
+      console.error('[payments] Failed to release payment event lock', releaseError)
     }
 
+    throw error
+  }
+}
+
+async function findExistingPurchase({
+  provider,
+  paymentId,
+  subscriptionId,
+}: {
+  provider: PaymentProvider
+  paymentId: string
+  subscriptionId?: string | null
+}) {
+  const supabase = createServerClient()
+
+  const { data: paymentMatch, error: paymentError } = await supabase
+    .from('purchases')
+    .select('*')
+    .eq('payment_provider', provider)
+    .eq('payment_id', paymentId)
+    .maybeSingle()
+
+  if (paymentError) {
+    throw paymentError
+  }
+
+  if (paymentMatch) {
+    return paymentMatch
+  }
+
+  if (!subscriptionId) {
+    return null
+  }
+
+  const { data: subscriptionMatch, error: subscriptionError } = await supabase
+    .from('purchases')
+    .select('*')
+    .eq('payment_provider', provider)
+    .eq('subscription_id', subscriptionId)
+    .maybeSingle()
+
+  if (subscriptionError) {
+    throw subscriptionError
+  }
+
+  return subscriptionMatch
+}
+
+export async function applyPaymentToProfile(input: ApplyPaymentInput): Promise<AppliedPaymentResult> {
+  const profile = await getProfileByIdentity(input.clerkUserId, input.email)
+
+  if (!profile) {
+    throw new Error('No matching profile found for payment event.')
+  }
+
+  const existingPurchase = await findExistingPurchase({
+    provider: input.provider,
+    paymentId: input.paymentId,
+    subscriptionId: input.subscriptionId,
+  })
+
+  if (existingPurchase) {
     return {
       profile,
       creditsAdded: existingPurchase.credits_added,
       newCredits: profile.credits,
       plan: existingPurchase.plan,
+      alreadyProcessed: true,
     }
-  }
-
-  const profile = await getProfileByIdentity(input.clerkUserId, input.email)
-
-  if (!profile) {
-    throw new Error('No matching profile found for payment event.')
   }
 
   const supabase = createServerClient()
@@ -153,59 +195,63 @@ export async function applyPaymentToProfile(input: ApplyPaymentInput) {
     }
   }
 
-  const { error: profileError } = await supabase
-    .from('profiles')
-    .update(profileUpdate)
-    .eq('id', profile.id)
-
-  if (profileError) {
-    throw profileError
-  }
-
-  const purchaseInsert: Database['public']['Tables']['purchases']['Insert'] = {
-    profile_id: profile.id,
-    clerk_user_id: profile.clerk_user_id,
-    plan: input.plan,
-    credits_added: creditsAdded,
-    amount_idr: input.amountIdr ?? null,
-    amount_usd: input.amountUsd ?? null,
-    currency: input.currency,
-    payment_provider: input.provider,
-    payment_id: input.paymentId,
-    payment_status: input.paymentStatus ?? 'success',
-    is_subscription: isSubscription,
-    subscription_id: input.subscriptionId ?? null,
-    referred_by_code: profile.referred_by_code,
-  }
-
-  const { error: purchaseError } = await supabase.from('purchases').insert(purchaseInsert)
-
-  if (purchaseError) {
-    throw purchaseError
-  }
-
   try {
-    await awardAffiliateCredits({
-      referredProfile: profile,
-      plan: input.plan,
-    })
-  } catch (error) {
-    console.error('Failed to award affiliate credits:', error)
-  }
+    const { error: profileError } = await supabase
+      .from('profiles')
+      .update(profileUpdate)
+      .eq('id', profile.id)
 
-  await trackServerEvent('purchase_completed', {
-    provider: input.provider,
-    plan: input.plan,
-    currency: input.currency,
-    credits_added: creditsAdded,
-    is_subscription: isSubscription,
-  })
+    if (profileError) {
+      throw profileError
+    }
+
+    const purchaseInsert: Database['public']['Tables']['purchases']['Insert'] = {
+      profile_id: profile.id,
+      clerk_user_id: profile.clerk_user_id,
+      plan: input.plan,
+      credits_added: creditsAdded,
+      amount_idr: input.amountIdr ?? null,
+      amount_usd: input.amountUsd ?? null,
+      currency: input.currency,
+      payment_provider: input.provider,
+      payment_id: input.paymentId,
+      payment_status: input.paymentStatus ?? 'success',
+      is_subscription: isSubscription,
+      subscription_id: input.subscriptionId ?? null,
+      referred_by_code: profile.referred_by_code,
+    }
+
+    const { error: purchaseError } = await supabase.from('purchases').insert(purchaseInsert)
+
+    if (purchaseError) {
+      throw purchaseError
+    }
+  } catch (error) {
+    const rollbackUpdate: Database['public']['Tables']['profiles']['Update'] = {
+      credits: profile.credits,
+      tier: profile.tier,
+      subscription_status: profile.subscription_status,
+      subscription_period_end: profile.subscription_period_end,
+      payment_provider: profile.payment_provider,
+      mayar_customer_id: profile.mayar_customer_id,
+      polar_customer_id: profile.polar_customer_id,
+    }
+
+    try {
+      await supabase.from('profiles').update(rollbackUpdate).eq('id', profile.id)
+    } catch (rollbackError) {
+      console.error('[payments] Failed to rollback profile update', rollbackError)
+    }
+
+    throw error
+  }
 
   return {
     profile,
     creditsAdded,
     newCredits: profile.credits + creditsAdded,
     plan: input.plan,
+    alreadyProcessed: false,
   }
 }
 

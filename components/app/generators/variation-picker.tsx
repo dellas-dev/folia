@@ -1,27 +1,26 @@
 'use client'
 
 import { Lock } from 'lucide-react'
-
 import { cn } from '@/lib/utils'
 
 type VariationPickerProps = {
-  value: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8
+  value: 1 | 2 | 3 | 4
   maxVariations: number
-  onChange: (value: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8) => void
+  onChange: (value: 1 | 2 | 3 | 4) => void
 }
 
-const options = [1, 2, 3, 4, 5, 6, 7, 8] as const
+const options = [1, 2, 3, 4] as const
 
 export function VariationPicker({ value, maxVariations, onChange }: VariationPickerProps) {
   return (
-    <div className="space-y-3">
-      <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
-        <p className="text-sm font-medium text-foreground">Variations</p>
-        <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Credits spent = images returned</p>
-      </div>
-      <div className="grid grid-cols-4 gap-3 lg:grid-cols-8">
+    <div className="space-y-2.5">
+      <p className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: '#70787a' }}>
+        Variations
+      </p>
+      <div className="flex gap-2">
         {options.map((option) => {
           const locked = option > maxVariations
+          const isActive = value === option
 
           return (
             <button
@@ -30,15 +29,23 @@ export function VariationPicker({ value, maxVariations, onChange }: VariationPic
               disabled={locked}
               onClick={() => onChange(option)}
               className={cn(
-                'flex min-h-16 items-center justify-center gap-2 rounded-2xl border text-sm font-medium transition-colors',
-                value === option
-                  ? 'border-primary bg-primary text-primary-foreground'
-                  : 'border-border/70 bg-card text-foreground hover:bg-accent/50',
-                locked && 'cursor-not-allowed opacity-60 hover:bg-card'
+                'flex size-10 items-center justify-center rounded-full text-sm font-semibold transition-all',
+                isActive && !locked
+                  ? 'text-white shadow-[0_4px_12px_rgba(55,101,107,0.3)]'
+                  : locked
+                    ? 'cursor-not-allowed opacity-40'
+                    : 'hover:-translate-y-0.5'
               )}
+              style={{
+                backgroundColor: isActive && !locked
+                  ? '#37656b'
+                  : locked
+                    ? '#eeeeee'
+                    : '#eeeeee',
+                color: isActive && !locked ? '#ffffff' : locked ? '#c0c8c9' : '#404849',
+              }}
             >
-              {locked ? <Lock className="size-4" /> : null}
-              {option}
+              {locked ? <Lock className="size-3.5" /> : option}
             </button>
           )
         })}

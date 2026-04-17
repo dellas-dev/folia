@@ -1,20 +1,21 @@
-import { AlertCircle, Coins } from 'lucide-react'
-
 import type { Profile } from '@/lib/clerk/auth'
-import { cn } from '@/lib/utils'
 
 type CreditsBadgeProps = {
   profile: Pick<Profile, 'credits' | 'tier'>
 }
 
 export function CreditsBadge({ profile }: CreditsBadgeProps) {
+  const isLow = profile.credits < 3
+
   return (
     <div
-      className={cn('inline-flex items-center gap-2 rounded-full border border-[#D4A843] bg-[#D4A843] px-3 py-2 text-sm font-medium text-[#2C2C2A] shadow-sm shadow-black/5')}
+      className="inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-semibold transition-colors"
+      style={{
+        backgroundColor: isLow ? 'rgba(255,218,214,0.85)' : 'rgba(209,227,230,0.6)',
+        color: isLow ? '#93000a' : '#37656b',
+      }}
     >
-      {profile.credits < 3 ? <AlertCircle className="size-4" /> : <Coins className="size-4" />}
-      <span>{profile.credits} credits</span>
-      <span className="rounded-full bg-[#D4A843] px-2 py-1 text-xs uppercase tracking-[0.2em] text-[#2C2C2A]">{profile.tier}</span>
+      <span className="tabular-nums">{profile.credits.toLocaleString('en-US')} credits</span>
     </div>
   )
 }

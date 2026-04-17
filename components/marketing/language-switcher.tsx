@@ -25,7 +25,7 @@ export function LanguageSwitcher({ locale }: LanguageSwitcherProps) {
   }
 
   return (
-    <div className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-card px-2 py-1 text-xs font-medium text-muted-foreground">
+    <div className="inline-flex items-center gap-2 rounded-full px-2 py-1 text-xs font-medium backdrop-blur-[20px]" style={{ backgroundColor: 'rgba(249,249,249,0.8)', color: '#70787a', boxShadow: '0 2px 8px rgba(55,101,107,0.06)' }}>
       <span className="px-2">{copy.label}</span>
       {(['en', 'id'] as const).map((option) => (
         <button
@@ -33,10 +33,11 @@ export function LanguageSwitcher({ locale }: LanguageSwitcherProps) {
           type="button"
           onClick={() => updateLocale(option)}
           disabled={isPending}
-          className={cn(
-            'rounded-full px-3 py-1 transition-colors',
-            locale === option ? 'bg-primary text-primary-foreground' : 'hover:bg-muted hover:text-foreground'
-          )}
+          className="rounded-full px-3 py-1 transition-colors"
+          style={locale === option
+            ? { backgroundColor: '#d1e3e6', color: '#37656b' }
+            : undefined
+          }
         >
           {copy[option]}
         </button>

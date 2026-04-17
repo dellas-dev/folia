@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { LoaderCircle } from 'lucide-react'
 
 import { buttonVariants } from '@/components/ui/button'
-import { trackClientEvent } from '@/lib/analytics/client'
+import { useToast } from '@/components/ui/toast-provider'
 import { cn } from '@/lib/utils'
 
 type CheckoutButtonProps = {
@@ -16,6 +16,7 @@ type CheckoutButtonProps = {
 
 export function CheckoutButton({ plan, currency, children, className }: CheckoutButtonProps) {
   const [loading, setLoading] = useState(false)
+  const { toast } = useToast()
 
   return (
     <button
@@ -25,11 +26,6 @@ export function CheckoutButton({ plan, currency, children, className }: Checkout
         setLoading(true)
 
         try {
-          trackClientEvent('upgrade_clicked', {
-            plan,
-            currency,
-          })
-
           const response = await fetch('/api/payments/checkout', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -44,7 +40,11 @@ export function CheckoutButton({ plan, currency, children, className }: Checkout
 
           window.location.href = data.checkout_url
         } catch (error) {
-          window.alert(error instanceof Error ? error.message : 'Unable to start checkout.')
+          toast({
+            tone: 'error',
+            title: 'Checkout failed',
+            description: error instanceof Error ? error.message : 'Unable to start checkout.',
+          })
           setLoading(false)
         }
       }}

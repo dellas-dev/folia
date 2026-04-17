@@ -1,7 +1,14 @@
 import { getCurrentProfile } from '@/lib/clerk/auth'
-import { FAL_ENDPOINT, FAL_MODELS, getFalHeaders } from '@/lib/fal/client'
+import { FAL_ENDPOINT, FAL_MODELS, fetchFal, getFalHeaders, getFalMissingEnv, isFalNetworkError } from '@/lib/fal/client'
 import { buildRemoveBgR2Key, getSignedR2Url, isOwnedR2Key, uploadToR2 } from '@/lib/r2/client'
 import { createServerClient } from '@/lib/supabase/server'
+
+const REQUIRED_REMOVE_BG_ENV = [
+  'CF_ACCOUNT_ID',
+  'CF_R2_ACCESS_KEY_ID',
+  'CF_R2_SECRET_ACCESS_KEY',
+  'CF_R2_BUCKET_NAME',
+] as const
 
 export async function POST(request: Request) {
   const { user, profile } = await getCurrentProfile()
@@ -20,14 +27,23 @@ export async function POST(request: Request) {
     return Response.json({ error: 'r2_key is required' }, { status: 422 })
   }
 
-  if (!isOwnedR2Key(user.id, body.r2_key, ['uploads', 'generations'])) {
+  if (!isOwnedR2Key(body.r2_key, user.id)) {
     return Response.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
+  const missingEnv = [...getFalMissingEnv(), ...REQUIRED_REMOVE_BG_ENV.filter((name) => !process.env[name])]
+
+  if (missingEnv.length > 0) {
+    return Response.json(
+      { error: `Remove BG is not configured. Missing env: ${missingEnv.join(', ')}` },
+      { status: 500 }
+    )
   }
 
   try {
     const inputUrl = await getSignedR2Url(body.r2_key, 300)
 
-    const falResponse = await fetch(`${FAL_ENDPOINT}/${FAL_MODELS.bgRemoval}`, {
+    const falResponse = await fetchFal(`${FAL_ENDPOINT}/${FAL_MODELS.bgRemoval}`, {
       method: 'POST',
       headers: getFalHeaders(),
       body: JSON.stringify({ image_url: inputUrl, sync_mode: true }),
@@ -64,25 +80,20 @@ export async function POST(request: Request) {
 
     if (error) throw error
 
-    const { error: jobError } = await supabase.from('remove_bg_jobs').insert({
-      profile_id: profile.id,
-      clerk_user_id: user.id,
-      source_r2_key: body.r2_key,
-      result_r2_key: r2Key,
-      credits_spent: 1,
-      status: 'success',
-    })
-
-    if (jobError) {
-      console.error('[remove-bg] Failed to record audit row', jobError)
-    }
-
     return Response.json({
       signed_url: signedUrl,
       credits_remaining: profile.credits - 1,
     })
   } catch (error) {
     console.error('[remove-bg]', error)
+
+    if (isFalNetworkError(error)) {
+      return Response.json(
+        { error: 'Background removal service is temporarily unreachable. Please try again in a moment.' },
+        { status: 503 }
+      )
+    }
+
     const message = error instanceof Error ? error.message : 'Background removal failed.'
     return Response.json({ error: message }, { status: 500 })
   }

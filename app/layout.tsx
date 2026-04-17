@@ -1,21 +1,9 @@
 import type { Metadata } from 'next'
 import { ClerkProvider } from '@clerk/nextjs'
-import { Cormorant_Garamond, Manrope } from 'next/font/google'
 
 import { ToastProvider } from '@/components/ui/toast-provider'
 
 import './globals.css'
-
-const manrope = Manrope({
-  variable: '--font-sans',
-  subsets: ['latin'],
-})
-
-const cormorant = Cormorant_Garamond({
-  variable: '--font-heading',
-  subsets: ['latin'],
-  weight: ['500', '600', '700'],
-})
 
 export const metadata: Metadata = {
   title: 'Folia',
@@ -31,7 +19,17 @@ export default function RootLayout({
   return (
     <ClerkProvider>
       <html lang="en" suppressHydrationWarning>
-        <body className={`${manrope.variable} ${cormorant.variable} antialiased`}>
+        <head>
+          <link rel="preconnect" href="https://fonts.googleapis.com" />
+          <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+          <link
+            href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&family=Manrope:wght@400;500;600;700&display=swap"
+            rel="stylesheet"
+          />
+          {/* eslint-disable-next-line @next/next/no-sync-scripts */}
+          <script src="https://mcp.figma.com/mcp/html-to-design/capture.js" async></script>
+        </head>
+        <body className="antialiased">
           <ToastProvider>{children}</ToastProvider>
         </body>
       </html>

@@ -61,7 +61,7 @@ export async function syncProfileFromClerkUser(user: User) {
     .single()
 
   if (error) {
-    throw error
+    throw new Error(`[auth] Profile upsert failed (${error.code}): ${error.message}`)
   }
 
   return data
@@ -89,7 +89,7 @@ export async function getCurrentProfile(): Promise<{
     .maybeSingle()
 
   if (error) {
-    throw error
+    throw new Error(`[auth] Profile fetch failed (${error.code}): ${error.message}`)
   }
 
   if (data) {
@@ -121,11 +121,19 @@ export async function getCurrentProfile(): Promise<{
 }
 
 export async function requireCurrentProfile() {
-  const { user, profile } = await getCurrentProfile()
+  try {
+    const { user, profile } = await getCurrentProfile()
 
-  if (!user || !profile) {
-    redirect('/sign-in')
+    if (!user || !profile) {
+      redirect('/sign-in')
+    }
+
+    return { user, profile }
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith('[auth] Profile fetch failed')) {
+      throw new Error('AUTH_PROFILE_UNAVAILABLE')
+    }
+
+    throw error
   }
-
-  return { user, profile }
 }

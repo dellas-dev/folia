@@ -1,6 +1,7 @@
 import { getCurrentProfile } from '@/lib/clerk/auth'
+import { getFalMissingEnv, isFalNetworkError } from '@/lib/fal/client'
 import { generateElementImages } from '@/lib/fal/elements'
-import { enhancePrompt } from '@/lib/ai/enhancer'
+import { enhancePrompt } from '@/lib/gemini/enhancer'
 import { PLANS } from '@/lib/plans'
 import { buildGenerationR2Key, getSignedR2Url, isOwnedR2Key, uploadToR2 } from '@/lib/r2/client'
 import { createServerClient } from '@/lib/supabase/server'
@@ -55,13 +56,13 @@ export async function POST(request: Request) {
   const effectiveTier = getEffectiveTier(profile.tier)
   const plan = PLANS[effectiveTier]
   const requestedVariations = typeof body.num_variations === 'number' ? body.num_variations : 1
-  const numVariations = Math.max(1, Math.min(8, Math.floor(requestedVariations)))
+  const numVariations = Math.max(1, Math.min(4, Math.floor(requestedVariations)))
 
   if (body.reference_image_r2_key && !plan.reference_image) {
     return Response.json({ error: 'Reference image requires Pro or Business' }, { status: 403 })
   }
 
-  if (body.reference_image_r2_key && !isOwnedR2Key(user.id, body.reference_image_r2_key, ['uploads'])) {
+  if (body.reference_image_r2_key && !isOwnedR2Key(body.reference_image_r2_key, user.id)) {
     return Response.json({ error: 'Forbidden' }, { status: 403 })
   }
 
@@ -74,6 +75,15 @@ export async function POST(request: Request) {
 
   if (profile.credits < numVariations) {
     return Response.json({ error: 'Not enough credits. Please top up or subscribe.' }, { status: 403 })
+  }
+
+  const missingEnv = getFalMissingEnv()
+
+  if (missingEnv.length > 0) {
+    return Response.json(
+      { error: `Elements generation is not configured. Missing env: ${missingEnv.join(', ')}` },
+      { status: 500 }
+    )
   }
 
   try {
@@ -106,13 +116,6 @@ export async function POST(request: Request) {
       throw error
     }
 
-    console.log('=== GROQ OUTPUT ===')
-    console.log('Mode:', referenceImageBase64 ? 'A (with image)' : 'B (text only)')
-    console.log('User input:', prompt)
-    console.log('Style:', body.style)
-    console.log('Enhanced prompt:', promptEnhanced)
-    console.log('Word count:', promptEnhanced.split(' ').length)
-    console.log('===================')
     const generationStartedAt = Date.now()
     const falResult = await generateElementImages({
       prompt: promptEnhanced,
@@ -193,6 +196,14 @@ export async function POST(request: Request) {
     })
   } catch (error) {
     console.error('[generate/elements]', error)
+
+    if (isFalNetworkError(error)) {
+      return Response.json(
+        { error: 'Image generation service is temporarily unreachable. Please try again in a moment.' },
+        { status: 503 }
+      )
+    }
+
     const message = error instanceof Error ? error.message : 'Generation failed. Please try again.'
 
     return Response.json(

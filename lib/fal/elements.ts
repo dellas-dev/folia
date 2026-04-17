@@ -1,4 +1,4 @@
-import { FAL_ENDPOINT, FAL_MODELS, getFalHeaders } from '@/lib/fal/client'
+import { FAL_ENDPOINT, FAL_MODELS, fetchFal, getFalHeaders } from '@/lib/fal/client'
 
 type FalImage = {
   url: string
@@ -17,7 +17,7 @@ type GenerateElementImagesInput = {
 }
 
 async function generateSingleImage(model: string, prompt: string, resolution: number): Promise<FalImage> {
-  const response = await fetch(`${FAL_ENDPOINT}/${model}`, {
+  const response = await fetchFal(`${FAL_ENDPOINT}/${model}`, {
     method: 'POST',
     headers: getFalHeaders(),
     body: JSON.stringify({

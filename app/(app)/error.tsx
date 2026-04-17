@@ -18,10 +18,10 @@ export default function AppError({
 
   return (
     <div className="flex min-h-[60vh] items-center justify-center">
-      <div className="max-w-lg rounded-3xl border border-border/70 bg-card/90 p-8 text-center shadow-sm shadow-black/5">
-        <p className="text-sm uppercase tracking-[0.24em] text-muted-foreground">Something went wrong</p>
-        <h1 className="mt-3 text-4xl font-semibold text-foreground">The workspace could not load.</h1>
-        <p className="mt-4 text-base leading-7 text-muted-foreground">
+      <div className="max-w-lg rounded-[2.2rem] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(245,243,238,0.92))] p-8 text-center shadow-[0_10px_40px_-10px_rgba(27,28,25,0.06)]">
+        <p className="text-sm uppercase tracking-[0.24em] text-charcoal/45">Something went wrong</p>
+        <h1 className="mt-3 text-4xl font-semibold text-charcoal">The workspace could not load.</h1>
+        <p className="mt-4 text-base leading-7 text-charcoal/65">
           Try again first. If it keeps happening, check the Clerk and Supabase connection for the current environment.
         </p>
         <button type="button" onClick={reset} className={cn(buttonVariants({ size: 'lg' }), 'mt-6')}>

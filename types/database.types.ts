@@ -149,21 +149,6 @@ export interface Database {
         Update: Partial<Database['public']['Tables']['generation_counter']['Row']>
         Relationships: []
       }
-      remove_bg_jobs: {
-        Row: {
-          id: string
-          profile_id: string
-          clerk_user_id: string
-          source_r2_key: string
-          result_r2_key: string
-          credits_spent: number
-          status: 'success' | 'failed'
-          created_at: string
-        }
-        Insert: Omit<Database['public']['Tables']['remove_bg_jobs']['Row'], 'id' | 'created_at'>
-        Update: Partial<Database['public']['Tables']['remove_bg_jobs']['Insert']>
-        Relationships: []
-      }
     }
     Views: Record<string, never>
     Functions: Record<string, never>

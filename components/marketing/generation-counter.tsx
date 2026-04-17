@@ -7,10 +7,10 @@ export async function GenerationCounter() {
   const totalCount = data?.total_count ?? 0
 
   return (
-    <section className="rounded-[1.8rem] border border-border/70 bg-card/90 p-8 text-center shadow-sm shadow-black/5">
-      <p className="text-sm uppercase tracking-[0.28em] text-muted-foreground">Community momentum</p>
-      <h2 className="mt-3 text-5xl font-semibold text-foreground">{new Intl.NumberFormat('en-US').format(totalCount)}</h2>
-      <p className="mt-3 text-sm leading-7 text-muted-foreground">elements and mockups generated through Folia so far.</p>
+    <section className="rounded-[2rem] p-8 text-center" style={{ backgroundColor: '#f4f3f3', boxShadow: '0 10px 40px -10px rgba(55,101,107,0.06)' }}>
+      <p className="text-xs uppercase tracking-[0.28em]" style={{ color: '#70787a' }}>Community momentum</p>
+      <h2 className="brand-display mt-3 text-5xl font-semibold sm:text-6xl" style={{ color: '#1a1c1c', fontFamily: 'var(--font-heading)' }}>{new Intl.NumberFormat('en-US').format(totalCount)}</h2>
+      <p className="mx-auto mt-3 max-w-xl text-sm leading-7" style={{ color: '#70787a' }}>elements and mockups generated through Folia so far.</p>
     </section>
   )
 }

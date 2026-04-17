@@ -1,4 +1,8 @@
+'use client'
+
+import { Bell } from 'lucide-react'
 import { UserButton } from '@clerk/nextjs'
+import { usePathname } from 'next/navigation'
 
 import type { Profile } from '@/lib/clerk/auth'
 
@@ -9,20 +13,45 @@ type AppHeaderProps = {
   profile: Pick<Profile, 'credits' | 'tier'>
 }
 
-export function AppHeader({ firstName, profile }: AppHeaderProps) {
-  return (
-    <header className="sticky top-0 z-20 border-b border-border/70 bg-background/85 backdrop-blur-xl">
-      <div className="flex items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
-        <div className="space-y-1">
-          <p className="text-sm uppercase tracking-[0.24em] text-muted-foreground">Workspace</p>
-          <div>
-            <h1 className="text-2xl font-semibold text-foreground">Welcome back{firstName ? `, ${firstName}` : ''}</h1>
-            <p className="text-sm text-muted-foreground">Generate isolated clipart fast, then grow into mockups, gallery, and billing flows.</p>
-          </div>
-        </div>
+const titles: Record<string, string> = {
+  '/dashboard': 'Dashboard',
+  '/elements': 'Elements Generator',
+  '/remove-bg': 'Remove Background',
+  '/mockups': 'Mockup Generator',
+  '/gallery': 'Folia Gallery',
+  '/affiliate': 'Affiliate Dashboard',
+  '/settings': 'Settings',
+  '/settings/billing': 'Billing & Credits',
+}
 
-        <div className="flex items-center gap-3">
-          <CreditsBadge profile={profile} />
+function resolveTitle(pathname: string) {
+  if (pathname in titles) return titles[pathname]
+  if (pathname.startsWith('/settings/billing')) return titles['/settings/billing']
+  if (pathname.startsWith('/settings')) return titles['/settings']
+  return 'Folia Workspace'
+}
+
+export function AppHeader({ firstName: _firstName, profile }: AppHeaderProps) {
+  const pathname = usePathname()
+  const title = resolveTitle(pathname)
+
+  return (
+    <header
+      className="sticky top-0 z-30 hidden h-16 items-center justify-between border-b border-[rgba(192,200,201,0.15)] bg-white/92 px-8 backdrop-blur-[20px] lg:flex"
+    >
+      <h1 className="brand-display text-lg font-bold text-neutral-900">{title}</h1>
+
+      <div className="flex items-center gap-6">
+        <CreditsBadge profile={profile} />
+
+        <button
+          className="flex size-9 items-center justify-center rounded-full text-[#516164] transition-colors hover:bg-[#f5f5f5] hover:text-[#37656b]"
+          aria-label="Notifications"
+        >
+          <Bell className="size-4" />
+        </button>
+
+        <div className="flex size-8 items-center justify-center overflow-hidden rounded-full border border-[rgba(192,200,201,0.2)] bg-[#e2e2e2]">
           <UserButton />
         </div>
       </div>
