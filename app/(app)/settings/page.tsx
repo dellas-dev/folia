@@ -76,7 +76,7 @@ export default function SettingsPage() {
                   Open section
                   <ArrowRight className="size-3.5" />
                 </span>
-              )}
+              ) : null}
             </>
           )
 
