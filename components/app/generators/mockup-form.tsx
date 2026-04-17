@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { AlertCircle, AlertTriangle, CreditCard, Download, LoaderCircle, Lock, Sparkles, Upload } from 'lucide-react'
 
 import { useToast } from '@/components/ui/toast-provider'
-import { downloadRemoteFile } from '@/lib/download'
+import { downloadR2File } from '@/lib/download'
 import { cn } from '@/lib/utils'
 import { MOCKUP_SCENE_OPTIONS, type MockupScenePreset, type UserTier } from '@/types'
 
@@ -30,6 +30,7 @@ export function MockupForm({ tier, startingCredits, initialInvitationKey, initia
   const [scenePreset, setScenePreset] = useState<MockupScenePreset | null>(null)
   const [customDetails, setCustomDetails] = useState('')
   const [resultUrl, setResultUrl] = useState<string | null>(null)
+  const [resultR2Key, setResultR2Key] = useState<string | null>(null)
   const [credits, setCredits] = useState(startingCredits)
   const [error, setError] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
@@ -156,6 +157,7 @@ export function MockupForm({ tier, startingCredits, initialInvitationKey, initia
       if (!response.ok) throw new Error(data.error || 'Mockup generation failed.')
 
       setResultUrl(data.result.signed_url)
+      setResultR2Key(data.result.r2_key)
       setCredits(data.credits_remaining)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Mockup generation failed.')
@@ -169,7 +171,7 @@ export function MockupForm({ tier, startingCredits, initialInvitationKey, initia
 
     try {
       setIsExporting(true)
-      await downloadRemoteFile(resultUrl, 'folia-mockup.png')
+      await downloadR2File(resultR2Key ?? resultUrl, 'folia-mockup.png')
     } catch (err) {
       toast({
         title: 'Export failed',

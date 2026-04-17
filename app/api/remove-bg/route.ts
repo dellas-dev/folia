@@ -81,6 +81,7 @@ export async function POST(request: Request) {
     if (error) throw error
 
     return Response.json({
+      r2_key: r2Key,
       signed_url: signedUrl,
       credits_remaining: profile.credits - 1,
     })

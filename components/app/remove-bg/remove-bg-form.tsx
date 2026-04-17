@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { AlertCircle, AlertTriangle, Download, ImagePlus, LoaderCircle, Scissors, Upload } from 'lucide-react'
 
 import { useToast } from '@/components/ui/toast-provider'
-import { downloadRemoteFile } from '@/lib/download'
+import { downloadR2File } from '@/lib/download'
 import { cn } from '@/lib/utils'
 import type { UserTier } from '@/types'
 
@@ -21,7 +21,7 @@ type State =
   | { status: 'selected'; file: File; previewUrl: string }
   | { status: 'uploading'; file: File; previewUrl: string }
   | { status: 'processing'; previewUrl: string }
-  | { status: 'done'; originalUrl: string; resultUrl: string }
+  | { status: 'done'; originalUrl: string; resultUrl: string; resultR2Key: string }
   | { status: 'error'; previewUrl: string; message: string }
 
 export function RemoveBgForm({ startingCredits, initialR2Key, initialPreviewUrl }: RemoveBgFormProps) {
@@ -45,12 +45,12 @@ export function RemoveBgForm({ startingCredits, initialR2Key, initialPreviewUrl 
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ r2_key: initialR2Key }),
         })
-        const removeData = await removeRes.json() as { signed_url?: string; credits_remaining?: number; error?: string }
+        const removeData = await removeRes.json() as { r2_key?: string; signed_url?: string; credits_remaining?: number; error?: string }
 
         if (!removeRes.ok || !removeData.signed_url) throw new Error(removeData.error || 'Background removal failed.')
         if (typeof removeData.credits_remaining === 'number') setCredits(removeData.credits_remaining)
 
-        setState({ status: 'done', originalUrl: initialPreviewUrl!, resultUrl: removeData.signed_url })
+        setState({ status: 'done', originalUrl: initialPreviewUrl!, resultUrl: removeData.signed_url, resultR2Key: removeData.r2_key ?? '' })
       } catch (error) {
         setState({ status: 'error', previewUrl: initialPreviewUrl!, message: error instanceof Error ? error.message : 'Something went wrong.' })
       }
@@ -98,12 +98,12 @@ export function RemoveBgForm({ startingCredits, initialR2Key, initialPreviewUrl 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ r2_key: uploadData.r2_key }),
       })
-      const removeData = await removeRes.json() as { signed_url?: string; credits_remaining?: number; error?: string }
+      const removeData = await removeRes.json() as { r2_key?: string; signed_url?: string; credits_remaining?: number; error?: string }
 
       if (!removeRes.ok || !removeData.signed_url) throw new Error(removeData.error || 'Background removal failed.')
       if (typeof removeData.credits_remaining === 'number') setCredits(removeData.credits_remaining)
 
-      setState({ status: 'done', originalUrl: previewUrl, resultUrl: removeData.signed_url })
+      setState({ status: 'done', originalUrl: previewUrl, resultUrl: removeData.signed_url, resultR2Key: removeData.r2_key ?? '' })
     } catch (error) {
       setState({ status: 'error', previewUrl, message: error instanceof Error ? error.message : 'Something went wrong.' })
     }
@@ -124,7 +124,7 @@ export function RemoveBgForm({ startingCredits, initialR2Key, initialPreviewUrl 
 
     try {
       setIsDownloading(true)
-      await downloadRemoteFile(state.resultUrl, 'folia-removed-bg.png')
+      await downloadR2File(state.resultR2Key, 'folia-removed-bg.png')
     } catch (error) {
       toast({
         title: 'Download failed',

@@ -4,7 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { Contrast, Download, ImageOff, LoaderCircle, PanelsTopLeft, Scissors } from 'lucide-react'
 import { useToast } from '@/components/ui/toast-provider'
-import { downloadRemoteFile } from '@/lib/download'
+import { downloadR2File } from '@/lib/download'
 import type { GenerationResult } from '@/types'
 
 type BgMode = 'white' | 'gray' | 'dark'
@@ -23,7 +23,7 @@ export function ResultCard({ result }: ResultCardProps) {
   async function handleDownload() {
     try {
       setIsDownloading(true)
-      await downloadRemoteFile(result.signed_url, `folia-clipart-${result.index + 1}.jpg`)
+      await downloadR2File(result.r2_key, `folia-clipart-${result.index + 1}.jpg`)
     } catch (error) {
       toast({
         title: 'Download failed',
