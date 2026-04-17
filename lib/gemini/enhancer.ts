@@ -1,8 +1,10 @@
 import Groq from 'groq-sdk'
 
-const groq = new Groq({
-  apiKey: process.env.GROQ_API_KEY,
-})
+let _groq: Groq | null = null
+function getGroq() {
+  if (!_groq) _groq = new Groq({ apiKey: process.env.GROQ_API_KEY })
+  return _groq
+}
 
 const TEXT_MODEL = 'llama-3.3-70b-versatile'
 const VISION_MODEL = 'meta-llama/llama-4-scout-17b-16e-instruct'
@@ -358,7 +360,7 @@ const STYLE_CONTEXT: Record<string, string> = {
 // GROQ API CALLERS
 // ─────────────────────────────────────────────────────────────────────
 async function callGroqText(userMessage: string, systemPrompt: string): Promise<string> {
-  const completion = await groq.chat.completions.create({
+  const completion = await getGroq().chat.completions.create({
     model: TEXT_MODEL,
     messages: [
       { role: 'system', content: systemPrompt },
@@ -376,7 +378,7 @@ async function callGroqVision(
   userMessage: string,
   systemPrompt: string
 ): Promise<string> {
-  const completion = await groq.chat.completions.create({
+  const completion = await getGroq().chat.completions.create({
     model: VISION_MODEL,
     messages: [
       { role: 'system', content: systemPrompt },
