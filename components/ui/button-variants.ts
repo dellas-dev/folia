@@ -5,7 +5,7 @@ export const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: 'bg-[linear-gradient(135deg,#37656b,#507e84)] text-primary-foreground shadow-[0_10px_40px_-10px_rgba(55,101,107,0.22)] [a]:hover:opacity-95',
+        default: 'bg-[linear-gradient(135deg,#1FA6B5,#0E8EA0)] text-white shadow-[0_10px_40px_-10px_rgba(31,166,181,0.35)] [a]:hover:opacity-95',
         outline:
           'border-transparent bg-[#f4f3f3] text-[#1a1c1c] hover:bg-[#eeeeee] aria-expanded:bg-[#eeeeee] aria-expanded:text-[#1a1c1c]',
         secondary:
