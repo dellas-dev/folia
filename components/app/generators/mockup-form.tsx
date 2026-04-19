@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { AlertCircle, AlertTriangle, CreditCard, Download, LoaderCircle, Lock, Sparkles, Upload } from 'lucide-react'
+import { AlertCircle, AlertTriangle, CreditCard, Download, LoaderCircle, Lock, ScanSearch, Sparkles, Upload, X } from 'lucide-react'
 
 import { useToast } from '@/components/ui/toast-provider'
 import { downloadR2File } from '@/lib/download'
@@ -31,6 +31,10 @@ export function MockupForm({ tier, startingCredits, initialInvitationKey, initia
   const [customDetails, setCustomDetails] = useState('')
   const [resultUrl, setResultUrl] = useState<string | null>(null)
   const [resultR2Key, setResultR2Key] = useState<string | null>(null)
+  const [_referenceKey, setReferenceKey] = useState<string | null>(null)
+  const [referencePreviewUrl, setReferencePreviewUrl] = useState<string | null>(null)
+  const [referenceUploading, setReferenceUploading] = useState(false)
+  const [analyzingRef, setAnalyzingRef] = useState(false)
   const [credits, setCredits] = useState(startingCredits)
   const [error, setError] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
@@ -134,6 +138,49 @@ export function MockupForm({ tier, startingCredits, initialInvitationKey, initia
     } finally {
       setUploading(false)
     }
+  }
+
+  /* ── Reference upload + analyze ──────────────────────────── */
+  async function uploadReference(file: File) {
+    setReferenceUploading(true)
+    setError(null)
+    setReferencePreviewUrl(URL.createObjectURL(file))
+
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('purpose', 'reference')
+
+      const uploadRes = await fetch('/api/upload', { method: 'POST', body: formData })
+      const uploadData = await uploadRes.json() as { error?: string; r2_key?: string }
+      if (!uploadRes.ok || !uploadData.r2_key) throw new Error(uploadData.error || 'Upload failed.')
+
+      setReferenceKey(uploadData.r2_key)
+      setReferenceUploading(false)
+      setAnalyzingRef(true)
+
+      const analyzeRes = await fetch('/api/analyze-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ r2_key: uploadData.r2_key }),
+      })
+      const analyzeData = await analyzeRes.json() as { suggested_prompt?: string; error?: string }
+
+      if (analyzeData.suggested_prompt) {
+        setCustomDetails(analyzeData.suggested_prompt)
+        setScenePreset(null)
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Reference upload failed.')
+    } finally {
+      setReferenceUploading(false)
+      setAnalyzingRef(false)
+    }
+  }
+
+  function clearReference() {
+    setReferenceKey(null)
+    setReferencePreviewUrl(null)
   }
 
   /* ── Submit handler ───────────────────────────────────────── */
@@ -324,6 +371,73 @@ export function MockupForm({ tier, startingCredits, initialInvitationKey, initia
                   </div>
                 </div>
               ) : null}
+            </div>
+
+            {/* Scene reference upload */}
+            <div className="space-y-2.5">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: '#70787a' }}>
+                  Scene Reference
+                </label>
+                <span className="text-[10px] uppercase tracking-[0.16em]" style={{ color: '#c0c8c9' }}>
+                  Optional
+                </span>
+              </div>
+
+              {referencePreviewUrl ? (
+                <div
+                  className="flex items-center gap-3 rounded-[0.875rem] p-3"
+                  style={{ backgroundColor: analyzingRef ? 'rgba(55,101,107,0.07)' : '#f4f3f3' }}
+                >
+                  <img src={referencePreviewUrl} alt="Scene reference" className="h-14 w-auto rounded-lg object-contain" />
+                  <div className="min-w-0 flex-1">
+                    {analyzingRef ? (
+                      <div className="flex items-center gap-2">
+                        <LoaderCircle className="size-3.5 animate-spin shrink-0" style={{ color: '#37656b' }} />
+                        <p className="text-xs font-semibold" style={{ color: '#37656b' }}>Analyzing scene...</p>
+                      </div>
+                    ) : (
+                      <p className="text-xs font-semibold" style={{ color: '#404849' }}>Reference uploaded</p>
+                    )}
+                    {!analyzingRef && customDetails ? (
+                      <p className="mt-0.5 text-[10px] leading-4 line-clamp-2" style={{ color: '#70787a' }}>{customDetails}</p>
+                    ) : null}
+                  </div>
+                  {!analyzingRef ? (
+                    <button type="button" onClick={clearReference} className="shrink-0 rounded-full p-1 transition-colors hover:bg-[#eeeeee]">
+                      <X className="size-3.5" style={{ color: '#70787a' }} />
+                    </button>
+                  ) : null}
+                </div>
+              ) : (
+                <label
+                  className={cn('flex min-h-20 cursor-pointer flex-col items-center justify-center gap-2 rounded-[1rem] px-5 py-4 text-center transition-all', referenceUploading && 'cursor-wait opacity-60')}
+                  style={{ border: '1.5px dashed rgba(192,200,201,0.7)', backgroundColor: '#f4f3f3' }}
+                  onMouseEnter={(e) => { if (!referenceUploading) { e.currentTarget.style.borderColor = 'rgba(55,101,107,0.5)'; e.currentTarget.style.backgroundColor = 'rgba(55,101,107,0.02)' } }}
+                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'rgba(192,200,201,0.7)'; e.currentTarget.style.backgroundColor = '#f4f3f3' }}
+                >
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    className="sr-only"
+                    disabled={referenceUploading || submitting}
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0]
+                      if (!file) return
+                      await uploadReference(file)
+                      e.target.value = ''
+                    }}
+                  />
+                  {referenceUploading
+                    ? <LoaderCircle className="size-4 animate-spin" style={{ color: '#37656b' }} />
+                    : <ScanSearch className="size-4" style={{ color: '#c0c8c9' }} />
+                  }
+                  <p className="text-xs" style={{ color: '#70787a' }}>
+                    Upload a photo of the scene you want
+                  </p>
+                  <p className="text-[10px]" style={{ color: '#c0c8c9' }}>AI will read it and build a matching prompt</p>
+                </label>
+              )}
             </div>
 
             {/* Auto mode hint */}
