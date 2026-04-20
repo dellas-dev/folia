@@ -23,6 +23,53 @@ import { MOCKUP_BUNDLES, type MockupBundle, type MockupTemplate } from '@/lib/mo
 import { cn } from '@/lib/utils'
 import { MOCKUP_SCENE_OPTIONS, type MockupScenePreset, type UserTier } from '@/types'
 
+// ─── Color matching helpers (client-side, zero API cost) ──────────────────────
+
+function hexToRgb(hex: string): [number, number, number] {
+  const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
+  return m ? [parseInt(m[1], 16), parseInt(m[2], 16), parseInt(m[3], 16)] : [128, 128, 128]
+}
+
+function colorDistance(a: [number, number, number], b: [number, number, number]): number {
+  return Math.sqrt((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2)
+}
+
+// Samples the image at 40×40 via canvas, returns mean RGB of opaque pixels.
+function extractDominantColor(blobUrl: string): Promise<[number, number, number]> {
+  return new Promise((resolve) => {
+    const img = new Image()
+    img.onload = () => {
+      const canvas = document.createElement('canvas')
+      canvas.width = 40
+      canvas.height = 40
+      const ctx = canvas.getContext('2d')
+      if (!ctx) { resolve([128, 128, 128]); return }
+      ctx.drawImage(img, 0, 0, 40, 40)
+      const { data } = ctx.getImageData(0, 0, 40, 40)
+      let r = 0, g = 0, b = 0, n = 0
+      for (let i = 0; i < data.length; i += 4) {
+        if (data[i + 3] > 128) { r += data[i]; g += data[i + 1]; b += data[i + 2]; n++ }
+      }
+      resolve(n > 0 ? [Math.round(r / n), Math.round(g / n), Math.round(b / n)] : [128, 128, 128])
+    }
+    img.onerror = () => resolve([128, 128, 128])
+    img.src = blobUrl
+  })
+}
+
+// Returns the bundle id whose palette is closest to the given RGB.
+function findClosestBundleId(rgb: [number, number, number]): string {
+  let bestId = MOCKUP_BUNDLES[0].id
+  let bestDist = Infinity
+  for (const bundle of MOCKUP_BUNDLES) {
+    for (const hex of bundle.palette) {
+      const d = colorDistance(rgb, hexToRgb(hex))
+      if (d < bestDist) { bestDist = d; bestId = bundle.id }
+    }
+  }
+  return bestId
+}
+
 type MockupFormProps = {
   tier: UserTier
   startingCredits: number
@@ -66,6 +113,7 @@ export function MockupForm({ tier, startingCredits, initialInvitationKey, initia
   // Templates tab state
   const [selectedBundle, setSelectedBundle] = useState<MockupBundle | null>(null)
   const [selectedTemplate, setSelectedTemplate] = useState<MockupTemplate | null>(null)
+  const [suggestedBundleId, setSuggestedBundleId] = useState<string | null>(null)
   const [templateSubmitting, setTemplateSubmitting] = useState(false)
   const [templateResultUrl, setTemplateResultUrl] = useState<string | null>(null)
   const [templateResultR2Key, setTemplateResultR2Key] = useState<string | null>(null)
@@ -145,7 +193,15 @@ export function MockupForm({ tier, startingCredits, initialInvitationKey, initia
   async function uploadInvitation(file: File) {
     setUploading(true)
     setError(null)
-    setInvitationPreviewUrl(URL.createObjectURL(file))
+    const blobUrl = URL.createObjectURL(file)
+    setInvitationPreviewUrl(blobUrl)
+
+    // Analyze dominant color immediately from the blob URL (no API call needed)
+    extractDominantColor(blobUrl).then((rgb) => {
+      const id = findClosestBundleId(rgb)
+      setSuggestedBundleId(id)
+    })
+
     try {
       const formData = new FormData()
       formData.append('file', file)
@@ -393,12 +449,20 @@ export function MockupForm({ tier, startingCredits, initialInvitationKey, initia
 
               {/* Step 1 — Bundle selector */}
               <div className="space-y-2.5">
-                <p className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: '#70787a' }}>
-                  Choose Suite
-                </p>
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: '#70787a' }}>
+                    Choose Suite
+                  </p>
+                  {suggestedBundleId ? (
+                    <span className="text-[10px] font-semibold" style={{ color: '#37656b' }}>
+                      ✦ Color matched
+                    </span>
+                  ) : null}
+                </div>
                 <div className="grid grid-cols-2 gap-2">
                   {MOCKUP_BUNDLES.map((bundle) => {
                     const active = selectedBundle?.id === bundle.id
+                    const suggested = suggestedBundleId === bundle.id
                     return (
                       <button
                         key={bundle.id}
@@ -408,13 +472,25 @@ export function MockupForm({ tier, startingCredits, initialInvitationKey, initia
                           setSelectedTemplate(null)
                         }}
                         className={cn(
-                          'flex items-start gap-2.5 rounded-[0.875rem] p-3 text-left transition-all duration-200',
+                          'relative flex items-start gap-2.5 rounded-[0.875rem] p-3 text-left transition-all duration-200',
                           active
                             ? 'shadow-[0_0_0_2px_#37656b]'
-                            : 'hover:shadow-[0_2px_8px_rgba(55,101,107,0.10)]'
+                            : suggested
+                              ? 'shadow-[0_0_0_1.5px_rgba(55,101,107,0.4)]'
+                              : 'hover:shadow-[0_2px_8px_rgba(55,101,107,0.10)]'
                         )}
-                        style={{ backgroundColor: active ? 'rgba(55,101,107,0.07)' : '#f4f3f3' }}
+                        style={{ backgroundColor: active ? 'rgba(55,101,107,0.07)' : suggested ? 'rgba(55,101,107,0.04)' : '#f4f3f3' }}
                       >
+                        {/* Best Match badge */}
+                        {suggested && !active ? (
+                          <span
+                            className="absolute right-2 top-2 rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide"
+                            style={{ backgroundColor: '#37656b', color: '#ffffff' }}
+                          >
+                            Best Match
+                          </span>
+                        ) : null}
+
                         {/* Palette swatches */}
                         <div className="mt-0.5 flex shrink-0 flex-col gap-0.5">
                           {bundle.palette.map((hex) => (
