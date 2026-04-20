@@ -312,7 +312,7 @@ export async function compositeDesignCentered(
         top:  Math.max(0, top  - innerPad + 8),
       },
       {
-        input: design, blend: 'multiply',
+        input: design, blend: 'over',
         left,
         top,
       },
