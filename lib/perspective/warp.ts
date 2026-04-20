@@ -209,11 +209,16 @@ export async function detectColorTemperature(bgBuffer: Buffer): Promise<'warm' |
 }
 
 // Centers the design on a generated background with realistic blending:
-// 1. Color temperature tint to match the background
-// 2. Programmatic paper grain (soft-light, ~9% opacity)
+// 1. Color temperature tint to match background (warm/cool/neutral)
+// 2. Paper grain overlay (soft-light, ~9% opacity) for texture
 // 3. 0.4px edge blur to soften hard digital edges
 // 4. Two-layer drop shadow (outer wide + inner tight)
-// 5. Multiply blend so white areas show surface texture through
+// 5. Multiply blend so white card areas show surface texture through
+//
+// BUG NOTE: sharp.create background.alpha is parsed by the `color` npm module
+// which expects floats 0.0–1.0, NOT integers 0–255. Integer alpha values >1
+// clamp to 1.0 (fully opaque), producing solid black shadow fills that turn the
+// entire composited area black via multiply. All shadow alpha values are floats.
 export async function compositeDesignCentered(
   designBuffer: Buffer,
   backgroundBuffer: Buffer,
@@ -226,10 +231,11 @@ export async function compositeDesignCentered(
   const maxW = Math.round(bgW * 0.56)
   const maxH = Math.round(bgH * 0.68)
 
-  // Step 1 — Flatten + resize design
+  // Step 1 — Flatten (white bg), resize, ensure RGBA for consistent channel count
   let design = await sharp(designBuffer)
     .resize(maxW, maxH, { fit: 'inside', withoutEnlargement: false })
     .flatten({ background: { r: 255, g: 255, b: 255 } })
+    .ensureAlpha()
     .png()
     .toBuffer()
 
@@ -237,31 +243,27 @@ export async function compositeDesignCentered(
   const dW = dMeta.width!
   const dH = dMeta.height!
 
-  // Step 2 — Color temperature tint (very subtle: ~5% opacity overlay)
-  const TINT: Record<'warm' | 'cool' | 'neutral', { r: number; g: number; b: number; alpha: number }> = {
-    warm:    { r: 255, g: 210, b: 140, alpha: 13 },
-    cool:    { r: 140, g: 195, b: 255, alpha: 13 },
-    neutral: { r: 128, g: 128, b: 128, alpha: 0  },
+  // Step 2 — Color temperature tint: warm/cool shifts channels via .tint()
+  // .tint() multiplies each channel by tint/255, so values near 255 are subtle.
+  const TINT_MAP: Record<'warm' | 'cool' | 'neutral', { r: number; g: number; b: number } | null> = {
+    warm:    { r: 255, g: 245, b: 224 },  // slight amber warmth
+    cool:    { r: 224, g: 238, b: 255 },  // slight cool blue
+    neutral: null,
   }
-  const tintColor = TINT[colorTemp]
-  if (tintColor.alpha > 0) {
-    const tintLayer = await sharp({
-      create: { width: dW, height: dH, channels: 4, background: tintColor },
-    }).png().toBuffer()
-    design = await sharp(design)
-      .composite([{ input: tintLayer, blend: 'over' }])
-      .png()
-      .toBuffer()
+  const tintColor = TINT_MAP[colorTemp]
+  if (tintColor) {
+    design = await sharp(design).tint(tintColor).ensureAlpha().png().toBuffer()
   }
 
-  // Step 3 — Paper grain texture (programmatic noise, soft-light blend)
+  // Step 3 — Paper grain: RGBA noise buffer composited with soft-light.
+  // Design must be RGBA first (done in Step 1) to avoid channel mismatch.
   const grainData = Buffer.alloc(dW * dH * 4)
   for (let i = 0; i < dW * dH; i++) {
     const v = 128 + Math.round((Math.random() - 0.5) * 52)
     grainData[i * 4]     = v
     grainData[i * 4 + 1] = v
     grainData[i * 4 + 2] = v
-    grainData[i * 4 + 3] = 23  // ~9% opacity
+    grainData[i * 4 + 3] = 22  // 22/255 ≈ 8.6% opacity
   }
   const grainBuf = await sharp(grainData, {
     raw: { width: dW, height: dH, channels: 4 },
@@ -272,27 +274,31 @@ export async function compositeDesignCentered(
     .png()
     .toBuffer()
 
-  // Step 4 — Edge blur: softens hard digital pixel boundary by ~1px
+  // Step 4 — Edge blur: softens the hard pixel boundary ~1px
   design = await sharp(design).blur(0.4).png().toBuffer()
 
-  // Step 5 — Position: centered, shifted slightly above vertical midpoint
+  // Step 5 — Position: centered, slightly above vertical midpoint
   const left = Math.round((bgW - dW) / 2)
   const top  = Math.round((bgH - dH) / 2 - dH * 0.04)
 
-  // Step 6 — Shadow layers (outer wide → inner tight)
+  // Step 6 — Shadow layers (alpha MUST be 0.0–1.0 float for color module)
   const outerPad = 40
   const outerShadow = await sharp({
-    create: { width: dW + outerPad * 2, height: dH + outerPad * 2, channels: 4,
-              background: { r: 8, g: 4, b: 0, alpha: 32 } },
+    create: {
+      width: dW + outerPad * 2, height: dH + outerPad * 2, channels: 4,
+      background: { r: 8, g: 4, b: 0, alpha: 0.13 },   // ~13% opacity
+    },
   }).blur(24).png().toBuffer()
 
   const innerPad = 18
   const innerShadow = await sharp({
-    create: { width: dW + innerPad * 2, height: dH + innerPad * 2, channels: 4,
-              background: { r: 18, g: 10, b: 2, alpha: 58 } },
+    create: {
+      width: dW + innerPad * 2, height: dH + innerPad * 2, channels: 4,
+      background: { r: 18, g: 10, b: 2, alpha: 0.23 },  // ~23% opacity
+    },
   }).blur(11).png().toBuffer()
 
-  // Step 7 — Final composite
+  // Step 7 — Final composite: shadows under design, design on top with multiply
   return sharp(backgroundBuffer)
     .composite([
       {
