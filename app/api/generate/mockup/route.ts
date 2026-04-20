@@ -3,7 +3,7 @@ import { generateSceneBackground } from '@/lib/fal/backgrounds'
 import { getFalMissingEnv, isFalNetworkError } from '@/lib/fal/client'
 import { analyzeDesignForBackground } from '@/lib/gemini/enhancer'
 import { getPlanForTier } from '@/lib/plans'
-import { compositeDesignCentered } from '@/lib/perspective/warp'
+import { compositeDesignCentered, detectColorTemperature } from '@/lib/perspective/warp'
 import { buildGenerationR2Key, getSignedR2Url, isOwnedR2Key, uploadToR2 } from '@/lib/r2/client'
 import { createServerClient } from '@/lib/supabase/server'
 import { enforceGenerationRateLimit } from '@/lib/upstash/ratelimit'
@@ -91,8 +91,12 @@ export async function POST(request: Request) {
     if (!bgRes.ok) throw new Error('Failed to download generated background.')
     const bgBuffer = Buffer.from(await bgRes.arrayBuffer())
 
-    // ── Phase 4: Composite design centered on background ─────────────────
-    const composited = await compositeDesignCentered(invitationBuffer, bgBuffer)
+    // ── Phase 4: Detect background color temperature (pixel analysis) ────
+    const colorTemp = await detectColorTemperature(bgBuffer)
+    console.log('[mockup] Color temperature detected:', colorTemp)
+
+    // ── Phase 5: Composite design onto background ─────────────────────────
+    const composited = await compositeDesignCentered(invitationBuffer, bgBuffer, colorTemp)
 
     // ── Phase 5: Upload result ────────────────────────────────────────────
     const generationId = crypto.randomUUID()

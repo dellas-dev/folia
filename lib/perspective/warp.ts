@@ -186,60 +186,127 @@ async function createWhiteFill(
     .toBuffer()
 }
 
-// Centers the design on a generated background using multiply blend.
-// The design is flattened on white first so white areas blend into the surface naturally.
+// Detects whether a background image has warm, cool, or neutral color temperature
+// by comparing average red vs blue channel values across a downsampled version.
+export async function detectColorTemperature(bgBuffer: Buffer): Promise<'warm' | 'cool' | 'neutral'> {
+  const { data } = await sharp(bgBuffer)
+    .resize(40, 40, { fit: 'fill' })
+    .removeAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true })
+
+  let totalR = 0
+  let totalB = 0
+  const pixels = data.length / 3
+  for (let i = 0; i < data.length; i += 3) {
+    totalR += data[i]
+    totalB += data[i + 2]
+  }
+  const diff = (totalR - totalB) / pixels
+  if (diff > 14) return 'warm'
+  if (diff < -14) return 'cool'
+  return 'neutral'
+}
+
+// Centers the design on a generated background with realistic blending:
+// 1. Color temperature tint to match the background
+// 2. Programmatic paper grain (soft-light, ~9% opacity)
+// 3. 0.4px edge blur to soften hard digital edges
+// 4. Two-layer drop shadow (outer wide + inner tight)
+// 5. Multiply blend so white areas show surface texture through
 export async function compositeDesignCentered(
   designBuffer: Buffer,
-  backgroundBuffer: Buffer
+  backgroundBuffer: Buffer,
+  colorTemp: 'warm' | 'cool' | 'neutral' = 'neutral'
 ): Promise<Buffer> {
   const bgMeta = await sharp(backgroundBuffer).metadata()
   const bgW = bgMeta.width!
   const bgH = bgMeta.height!
 
-  // Fit design within 56% of bg width and 68% of bg height
   const maxW = Math.round(bgW * 0.56)
   const maxH = Math.round(bgH * 0.68)
 
-  // Flatten design to white (handles transparent PNGs), resize to fit center area
-  const flatDesign = await sharp(designBuffer)
+  // Step 1 — Flatten + resize design
+  let design = await sharp(designBuffer)
     .resize(maxW, maxH, { fit: 'inside', withoutEnlargement: false })
     .flatten({ background: { r: 255, g: 255, b: 255 } })
     .png()
     .toBuffer()
 
-  const dMeta = await sharp(flatDesign).metadata()
+  const dMeta = await sharp(design).metadata()
   const dW = dMeta.width!
   const dH = dMeta.height!
 
-  // Center horizontally; shift slightly above vertical center for flatlay aesthetics
-  const left = Math.round((bgW - dW) / 2)
-  const top = Math.round((bgH - dH) / 2 - dH * 0.04)
+  // Step 2 — Color temperature tint (very subtle: ~5% opacity overlay)
+  const TINT: Record<'warm' | 'cool' | 'neutral', { r: number; g: number; b: number; alpha: number }> = {
+    warm:    { r: 255, g: 210, b: 140, alpha: 13 },
+    cool:    { r: 140, g: 195, b: 255, alpha: 13 },
+    neutral: { r: 128, g: 128, b: 128, alpha: 0  },
+  }
+  const tintColor = TINT[colorTemp]
+  if (tintColor.alpha > 0) {
+    const tintLayer = await sharp({
+      create: { width: dW, height: dH, channels: 4, background: tintColor },
+    }).png().toBuffer()
+    design = await sharp(design)
+      .composite([{ input: tintLayer, blend: 'over' }])
+      .png()
+      .toBuffer()
+  }
 
-  // Soft shadow: semi-transparent dark rectangle blurred outward
-  const shadowPad = 24
-  const shadowBuffer = await sharp({
-    create: {
-      width: dW + shadowPad * 2,
-      height: dH + shadowPad * 2,
-      channels: 4,
-      background: { r: 15, g: 10, b: 5, alpha: 65 },
-    },
-  })
-    .blur(14)
+  // Step 3 — Paper grain texture (programmatic noise, soft-light blend)
+  const grainData = Buffer.alloc(dW * dH * 4)
+  for (let i = 0; i < dW * dH; i++) {
+    const v = 128 + Math.round((Math.random() - 0.5) * 52)
+    grainData[i * 4]     = v
+    grainData[i * 4 + 1] = v
+    grainData[i * 4 + 2] = v
+    grainData[i * 4 + 3] = 23  // ~9% opacity
+  }
+  const grainBuf = await sharp(grainData, {
+    raw: { width: dW, height: dH, channels: 4 },
+  }).png().toBuffer()
+
+  design = await sharp(design)
+    .composite([{ input: grainBuf, blend: 'soft-light' }])
     .png()
     .toBuffer()
 
+  // Step 4 — Edge blur: softens hard digital pixel boundary by ~1px
+  design = await sharp(design).blur(0.4).png().toBuffer()
+
+  // Step 5 — Position: centered, shifted slightly above vertical midpoint
+  const left = Math.round((bgW - dW) / 2)
+  const top  = Math.round((bgH - dH) / 2 - dH * 0.04)
+
+  // Step 6 — Shadow layers (outer wide → inner tight)
+  const outerPad = 40
+  const outerShadow = await sharp({
+    create: { width: dW + outerPad * 2, height: dH + outerPad * 2, channels: 4,
+              background: { r: 8, g: 4, b: 0, alpha: 32 } },
+  }).blur(24).png().toBuffer()
+
+  const innerPad = 18
+  const innerShadow = await sharp({
+    create: { width: dW + innerPad * 2, height: dH + innerPad * 2, channels: 4,
+              background: { r: 18, g: 10, b: 2, alpha: 58 } },
+  }).blur(11).png().toBuffer()
+
+  // Step 7 — Final composite
   return sharp(backgroundBuffer)
     .composite([
       {
-        input: shadowBuffer,
-        blend: 'over',
-        left: Math.max(0, left - shadowPad + 5),
-        top: Math.max(0, top - shadowPad + 9),
+        input: outerShadow, blend: 'over',
+        left: Math.max(0, left - outerPad + 8),
+        top:  Math.max(0, top  - outerPad + 14),
       },
       {
-        input: flatDesign,
-        blend: 'multiply',
+        input: innerShadow, blend: 'over',
+        left: Math.max(0, left - innerPad + 4),
+        top:  Math.max(0, top  - innerPad + 8),
+      },
+      {
+        input: design, blend: 'multiply',
         left,
         top,
       },
