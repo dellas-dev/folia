@@ -1,13 +1,14 @@
 import { getCurrentProfile } from '@/lib/clerk/auth'
+import { generateSceneBackground } from '@/lib/fal/backgrounds'
 import { getFalMissingEnv, isFalNetworkError } from '@/lib/fal/client'
-import { generateMockupImage } from '@/lib/fal/mockups'
-import { analyzeInvitationForMockup } from '@/lib/gemini/enhancer'
+import { analyzeDesignForBackground } from '@/lib/gemini/enhancer'
 import { getPlanForTier } from '@/lib/plans'
+import { compositeDesignCentered } from '@/lib/perspective/warp'
 import { buildGenerationR2Key, getSignedR2Url, isOwnedR2Key, uploadToR2 } from '@/lib/r2/client'
 import { createServerClient } from '@/lib/supabase/server'
 import { enforceGenerationRateLimit } from '@/lib/upstash/ratelimit'
 import type { Database } from '@/types/database.types'
-import { MOCKUP_SCENE_PROMPTS, type MockupScenePreset } from '@/types'
+import { MOCKUP_SCENE_OPTIONS, type MockupScenePreset } from '@/types'
 
 type GenerateMockupBody = {
   invitation_r2_key?: string
@@ -15,8 +16,8 @@ type GenerateMockupBody = {
   custom_prompt?: string
 }
 
-function isScenePreset(value: string): value is MockupScenePreset {
-  return value in MOCKUP_SCENE_PROMPTS
+function getSceneLabel(preset: MockupScenePreset): string | undefined {
+  return MOCKUP_SCENE_OPTIONS.find((s) => s.id === preset)?.label
 }
 
 export async function POST(request: Request) {
@@ -53,16 +54,7 @@ export async function POST(request: Request) {
     return Response.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  const scenePreset = body.scene_preset
-  const customPrompt = body.custom_prompt?.trim()
-
-  if (scenePreset && !isScenePreset(scenePreset)) {
-    return Response.json({ error: 'Invalid scene preset' }, { status: 422 })
-  }
-
-  const plan = getPlanForTier(profile.tier)
   const missingEnv = getFalMissingEnv()
-
   if (missingEnv.length > 0) {
     return Response.json(
       { error: `Mockup generation is not configured. Missing env: ${missingEnv.join(', ')}` },
@@ -70,70 +62,63 @@ export async function POST(request: Request) {
     )
   }
 
+  const plan = getPlanForTier(profile.tier)
+  const generationStartedAt = Date.now()
+
   try {
+    // ── Phase 1: Fetch design from R2 ────────────────────────────────────
     const invitationSignedUrl = await getSignedR2Url(body.invitation_r2_key, 300)
+    const invitationRes = await fetch(invitationSignedUrl)
+    if (!invitationRes.ok) throw new Error('Failed to load design image.')
 
-    let finalScenePrompt: string
-    let geminiUsed = false
+    const invitationBuffer = Buffer.from(await invitationRes.arrayBuffer())
+    const invitationBase64 = invitationBuffer.toString('base64')
+    const invitationMimeType = invitationRes.headers.get('content-type') || 'image/png'
 
-    if (scenePreset) {
-      // Preset mode — use preset prompt directly, Gemini skipped
-      finalScenePrompt = MOCKUP_SCENE_PROMPTS[scenePreset]
-    } else {
-      // AUTO mode — Gemini reads invitation and generates matching scene
-      const imageResponse = await fetch(invitationSignedUrl)
+    // ── Phase 2: Groq Vision analyzes design → background prompt ─────────
+    const sceneHint = body.scene_preset ? getSceneLabel(body.scene_preset) : body.custom_prompt
+    const backgroundPrompt = await analyzeDesignForBackground(
+      invitationBase64,
+      invitationMimeType,
+      sceneHint
+    )
 
-      if (!imageResponse.ok) {
-        throw new Error('Failed to load invitation image for analysis.')
-      }
+    console.log('[mockup] Phase 2 background prompt:', backgroundPrompt)
 
-      const invitationBase64 = Buffer.from(await imageResponse.arrayBuffer()).toString('base64')
-      const invitationMimeType = imageResponse.headers.get('content-type') || 'image/png'
+    // ── Phase 3: Flux Schnell generates background ───────────────────────
+    const bgImage = await generateSceneBackground(backgroundPrompt)
+    const bgRes = await fetch(bgImage.url)
+    if (!bgRes.ok) throw new Error('Failed to download generated background.')
+    const bgBuffer = Buffer.from(await bgRes.arrayBuffer())
 
-      finalScenePrompt = await analyzeInvitationForMockup(
-        invitationBase64,
-        invitationMimeType,
-        customPrompt
-      )
-      geminiUsed = true
-    }
+    // ── Phase 4: Composite design centered on background ─────────────────
+    const composited = await compositeDesignCentered(invitationBuffer, bgBuffer)
 
-    const generationStartedAt = Date.now()
-    const image = await generateMockupImage({
-      prompt: finalScenePrompt,
-      invitationImageUrl: invitationSignedUrl,
-    })
-
+    // ── Phase 5: Upload result ────────────────────────────────────────────
     const generationId = crypto.randomUUID()
-    const imageResponse = await fetch(image.url)
-
-    if (!imageResponse.ok) {
-      throw new Error('Failed to download generated mockup image from Fal.ai.')
-    }
-
-    const buffer = Buffer.from(await imageResponse.arrayBuffer())
-    const contentType = imageResponse.headers.get('content-type') || image.content_type || 'image/png'
-    const r2Key = buildGenerationR2Key(user.id, generationId, 1)
-
-    await uploadToR2(r2Key, buffer, contentType)
+    const r2Key = buildGenerationR2Key(user.id, generationId, 1, 'png')
+    await uploadToR2(r2Key, composited, 'image/png')
     const signedUrl = await getSignedR2Url(r2Key)
 
+    // ── Phase 6: Deduct credit + log ──────────────────────────────────────
     const supabase = createServerClient()
+    const creditsRemaining = profile.credits - 1
+
     const generationInsert: Database['public']['Tables']['generations']['Insert'] = {
       profile_id: profile.id,
       clerk_user_id: user.id,
       type: 'mockup',
       style: null,
       prompt_raw: null,
-      prompt_enhanced: finalScenePrompt,
+      prompt_enhanced: backgroundPrompt,
       reference_image_r2_key: null,
       invitation_r2_key: body.invitation_r2_key,
-      scene_preset: scenePreset ?? null,
-      custom_scene_prompt: customPrompt ?? null,
+      scene_preset: body.scene_preset ?? null,
+      custom_scene_prompt: body.custom_prompt ?? null,
       result_r2_keys: [r2Key],
       result_count: 1,
-      model_used: 'fal-ai/flux-pro/kontext',
-      gemini_used: geminiUsed,
+      model_used: 'design-to-scene-v1',
+      gemini_used: true,
       generation_time_ms: Date.now() - generationStartedAt,
       resolution: plan.resolution,
       is_public: false,
@@ -141,25 +126,18 @@ export async function POST(request: Request) {
       credits_spent: 1,
     }
 
-    const { error: generationError } = await supabase.from('generations').insert(generationInsert)
+    const [generationResult, creditsResult] = await Promise.all([
+      supabase.from('generations').insert(generationInsert),
+      supabase.from('profiles').update({ credits: creditsRemaining }).eq('clerk_user_id', user.id),
+    ])
 
-    if (generationError) throw generationError
-
-    const creditsRemaining = profile.credits - 1
-    const { error: profileError } = await supabase
-      .from('profiles')
-      .update({ credits: creditsRemaining })
-      .eq('clerk_user_id', user.id)
-
-    if (profileError) throw profileError
+    if (generationResult.error) throw generationResult.error
+    if (creditsResult.error) throw creditsResult.error
 
     return Response.json({
       generation_id: generationId,
-      result: {
-        r2_key: r2Key,
-        signed_url: signedUrl,
-      },
-      scene_prompt_used: finalScenePrompt,
+      result: { r2_key: r2Key, signed_url: signedUrl },
+      scene_prompt_used: backgroundPrompt,
       credits_remaining: creditsRemaining,
     })
   } catch (error) {
@@ -172,8 +150,14 @@ export async function POST(request: Request) {
       )
     }
 
-    const message = error instanceof Error ? error.message : 'Mockup generation failed. Please try again.'
+    if (error instanceof Error && error.message === 'GROQ_RATE_LIMIT') {
+      return Response.json(
+        { error: 'Design analysis is temporarily rate-limited. Please try again in a moment.' },
+        { status: 429 }
+      )
+    }
 
+    const message = error instanceof Error ? error.message : 'Mockup generation failed. Please try again.'
     return Response.json({ error: message }, { status: 500 })
   }
 }

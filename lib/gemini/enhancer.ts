@@ -648,6 +648,45 @@ Output ONLY the JSON, nothing else.`
   }
 }
 
+// Analyzes a design image and returns a Flux Schnell background-only prompt.
+// The prompt requests an empty center area so the design can be composited on top.
+export async function analyzeDesignForBackground(
+  designBase64: string,
+  mimeType: string,
+  sceneHint?: string  // optional scene label from preset (e.g. "Marble & Eucalyptus")
+): Promise<string> {
+  const BACKGROUND_SYSTEM_PROMPT = `You are a product photography prompt specialist for Etsy stationery mockups.
+
+Your job: analyze the uploaded invitation/stationery design and return ONE background flatlay prompt for an AI image generator.
+
+RULES:
+- Describe ONLY the background/surface — NO card or invitation visible
+- Place decorative props (real flowers, botanicals, ribbon, etc.) around the EDGES only
+- The CENTER must be LEFT COMPLETELY EMPTY and BRIGHT — this is where the card will be placed
+- Match props and surface to the design's color palette and botanical elements
+- Top-down flat lay perspective
+- Realistic product photography style
+
+OUTPUT FORMAT (40-55 words, comma-separated):
+Professional top-down flatlay photography, [surface matching design aesthetic], [2-3 specific real props matching design elements and colors, placed at edges], soft natural daylight from above, bright clean empty white center area, soft organic shadows, realistic Etsy product listing photo quality
+
+Do NOT mention any card, invitation, or paper. Only describe the background scene.`
+
+  const userMsg = sceneHint
+    ? `Analyze this design. Create a background prompt inspired by this scene style: "${sceneHint}". Match the props to both the scene style AND the design's color palette.`
+    : `Analyze this design's botanical elements, dominant colors, and aesthetic. Create the most complementary background flatlay prompt.`
+
+  try {
+    const raw = await callGroqVision(designBase64, mimeType || 'image/png', userMsg, BACKGROUND_SYSTEM_PROMPT)
+    if (!raw) throw new Error('Empty response from Groq')
+    return raw.trim()
+  } catch (error: any) {
+    const msg = error?.message ?? ''
+    if (msg.includes('429') || msg.includes('rate_limit')) throw new Error('GROQ_RATE_LIMIT')
+    throw new Error('GROQ_FAILED')
+  }
+}
+
 export async function analyzeInvitationForMockup(
   invitationImageBase64: string,
   mimeType: string,

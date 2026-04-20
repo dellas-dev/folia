@@ -186,6 +186,68 @@ async function createWhiteFill(
     .toBuffer()
 }
 
+// Centers the design on a generated background using multiply blend.
+// The design is flattened on white first so white areas blend into the surface naturally.
+export async function compositeDesignCentered(
+  designBuffer: Buffer,
+  backgroundBuffer: Buffer
+): Promise<Buffer> {
+  const bgMeta = await sharp(backgroundBuffer).metadata()
+  const bgW = bgMeta.width!
+  const bgH = bgMeta.height!
+
+  // Fit design within 56% of bg width and 68% of bg height
+  const maxW = Math.round(bgW * 0.56)
+  const maxH = Math.round(bgH * 0.68)
+
+  // Flatten design to white (handles transparent PNGs), resize to fit center area
+  const flatDesign = await sharp(designBuffer)
+    .resize(maxW, maxH, { fit: 'inside', withoutEnlargement: false })
+    .flatten({ background: { r: 255, g: 255, b: 255 } })
+    .png()
+    .toBuffer()
+
+  const dMeta = await sharp(flatDesign).metadata()
+  const dW = dMeta.width!
+  const dH = dMeta.height!
+
+  // Center horizontally; shift slightly above vertical center for flatlay aesthetics
+  const left = Math.round((bgW - dW) / 2)
+  const top = Math.round((bgH - dH) / 2 - dH * 0.04)
+
+  // Soft shadow: semi-transparent dark rectangle blurred outward
+  const shadowPad = 24
+  const shadowBuffer = await sharp({
+    create: {
+      width: dW + shadowPad * 2,
+      height: dH + shadowPad * 2,
+      channels: 4,
+      background: { r: 15, g: 10, b: 5, alpha: 65 },
+    },
+  })
+    .blur(14)
+    .png()
+    .toBuffer()
+
+  return sharp(backgroundBuffer)
+    .composite([
+      {
+        input: shadowBuffer,
+        blend: 'over',
+        left: Math.max(0, left - shadowPad + 5),
+        top: Math.max(0, top - shadowPad + 9),
+      },
+      {
+        input: flatDesign,
+        blend: 'multiply',
+        left,
+        top,
+      },
+    ])
+    .png()
+    .toBuffer()
+}
+
 // Full pipeline: erase existing design on reference, then warp and place new design.
 // Step 1 — composite white fill with 'over' blend: blanks out the existing content.
 // Step 2 — composite warped design with 'multiply' blend: preserves surface texture.

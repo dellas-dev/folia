@@ -8,6 +8,7 @@ export const FAL_MODELS = {
   elementsFallback: 'fal-ai/flux/dev',
   bgRemoval: 'fal-ai/bria/background/remove',
   mockup: 'fal-ai/flux-pro/kontext',
+  schnell: 'fal-ai/flux/schnell',
 } as const
 
 export function getFalHeaders() {
