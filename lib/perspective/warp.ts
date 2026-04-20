@@ -146,9 +146,50 @@ export async function perspectiveWarp(
     .toBuffer()
 }
 
-// Full pipeline: warp design onto reference and composite with multiply blend.
-// refBuffer should be the ORIGINAL reference buffer (not yet resized).
-// corners must be in the coordinate space of the resized reference (MAX_REF_PX).
+// Creates a fully-opaque white quad mask in the shape of the destination corners.
+// Used to erase the existing design on the reference photo before placing the new one.
+async function createWhiteFill(
+  corners: CornerPoints,
+  refWidth: number,
+  refHeight: number
+): Promise<Buffer> {
+  const dst: Point[] = [
+    corners.topLeft,
+    corners.topRight,
+    corners.bottomRight,
+    corners.bottomLeft,
+  ]
+
+  const xs = dst.map((p) => p.x)
+  const ys = dst.map((p) => p.y)
+  const bboxX0 = Math.max(0, Math.floor(Math.min(...xs)))
+  const bboxY0 = Math.max(0, Math.floor(Math.min(...ys)))
+  const bboxX1 = Math.min(refWidth - 1, Math.ceil(Math.max(...xs)))
+  const bboxY1 = Math.min(refHeight - 1, Math.ceil(Math.max(...ys)))
+
+  const outData = Buffer.alloc(refWidth * refHeight * 4, 0)
+  const quad: [Point, Point, Point, Point] = [dst[0], dst[1], dst[2], dst[3]]
+
+  for (let y = bboxY0; y <= bboxY1; y++) {
+    for (let x = bboxX0; x <= bboxX1; x++) {
+      if (!isInsideQuad({ x, y }, quad)) continue
+      const i = (y * refWidth + x) * 4
+      outData[i] = 255
+      outData[i + 1] = 255
+      outData[i + 2] = 255
+      outData[i + 3] = 255
+    }
+  }
+
+  return sharp(outData, { raw: { width: refWidth, height: refHeight, channels: 4 } })
+    .png()
+    .toBuffer()
+}
+
+// Full pipeline: erase existing design on reference, then warp and place new design.
+// Step 1 — composite white fill with 'over' blend: blanks out the existing content.
+// Step 2 — composite warped design with 'multiply' blend: preserves surface texture.
+// multiply on white = design shows exactly as-is (255 * x / 255 = x).
 export async function compositeOverlay(
   designBuffer: Buffer,
   refBuffer: Buffer,
@@ -156,11 +197,17 @@ export async function compositeOverlay(
   refWidth: number,
   refHeight: number
 ): Promise<Buffer> {
-  const warpedPng = await perspectiveWarp(designBuffer, corners, refWidth, refHeight)
+  const [warpedPng, whiteFill] = await Promise.all([
+    perspectiveWarp(designBuffer, corners, refWidth, refHeight),
+    createWhiteFill(corners, refWidth, refHeight),
+  ])
 
   return sharp(refBuffer)
     .resize(MAX_REF_PX, MAX_REF_PX, { fit: 'inside', withoutEnlargement: true })
-    .composite([{ input: warpedPng, blend: 'multiply' }])
+    .composite([
+      { input: whiteFill, blend: 'over' },
+      { input: warpedPng, blend: 'multiply' },
+    ])
     .png()
     .toBuffer()
 }
