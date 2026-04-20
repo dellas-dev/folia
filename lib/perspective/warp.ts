@@ -209,10 +209,8 @@ export async function detectColorTemperature(bgBuffer: Buffer): Promise<'warm' |
 }
 
 // Places the design centered on a generated background.
-// Uses white-paper-then-multiply so the card is always fully opaque:
-//   Step 1: white rectangle (over) → establishes solid white "paper" at that position
-//   Step 2: design (multiply on white = design) → colors render correctly, never transparent
-// No manual shadows — the Flux background supplies natural ambient shadow.
+// white-paper (over) → design (multiply): multiply(255, any) = any → card always fully opaque.
+// Shadow is a separate blurred rectangle composited before the white paper.
 export async function compositeDesignCentered(
   designBuffer: Buffer,
   backgroundBuffer: Buffer,
@@ -225,28 +223,50 @@ export async function compositeDesignCentered(
   const maxW = Math.round(bgW * 0.55)
   const maxH = Math.round(bgH * 0.70)
 
-  // Flatten to solid white (removes transparency), resize to fit center area
+  // Flatten to solid white, resize, then apply 0.4px edge blur to soften digital boundary
   const design = await sharp(designBuffer)
     .resize(maxW, maxH, { fit: 'inside', withoutEnlargement: false })
     .flatten({ background: { r: 255, g: 255, b: 255 } })
+    .blur(0.4)
     .png()
     .toBuffer()
 
   const { width: dW, height: dH } = await sharp(design).metadata() as { width: number; height: number }
 
-  // Center horizontally and vertically
   const left = Math.round((bgW - dW) / 2)
   const top  = Math.round((bgH - dH) / 2)
 
-  // White paper base — same dimensions as design, RGB solid white
+  // White paper base — same size as design, RGB solid
   const whitePaper = await sharp({
     create: { width: dW, height: dH, channels: 3, background: { r: 255, g: 255, b: 255 } },
   }).png().toBuffer()
 
-  // white (over) → design (multiply): multiply(255, any) = any, so design renders at full fidelity
+  // Shadow: slightly larger rectangle, blurred, alpha 0.0–1.0 (color module expects floats)
+  const shadowPad = 22
+  const shadow = await sharp({
+    create: {
+      width: dW + shadowPad * 2,
+      height: dH + shadowPad * 2,
+      channels: 4,
+      background: { r: 12, g: 8, b: 4, alpha: 0.22 },
+    },
+  })
+    .blur(16)
+    .png()
+    .toBuffer()
+
   return sharp(backgroundBuffer)
     .composite([
+      // Shadow behind card, offset slightly down-right
+      {
+        input: shadow,
+        blend: 'over',
+        left: Math.max(0, left - shadowPad + 6),
+        top:  Math.max(0, top  - shadowPad + 10),
+      },
+      // White paper establishes opaque base
       { input: whitePaper, blend: 'over',     left, top },
+      // Design on white: multiply(255, color) = color — full fidelity
       { input: design,     blend: 'multiply', left, top },
     ])
     .png()
