@@ -2,30 +2,20 @@ import type { CornerPoints } from './perspective/homography'
 
 export interface MockupTemplate {
   id: string
+  /** Short angle label shown below the thumbnail, e.g. "Easel", "Flat Lay" */
   angleLabel: string
   angleEmoji: string
-  /** Public asset path or fully-qualified remote URL */
+  /** Full-resolution image URL used for compositing (target ~1500px on longest side) */
   imageUrl: string
-  /** Public asset path or fully-qualified remote URL */
+  /** Lower-res thumbnail shown in the UI grid (~480px) */
   thumbUrl: string
-  composite?: MockupCompositeStyle
+  /** Corner coordinates as fractions 0.0–1.0 of the full-res image dimensions */
   corners: {
-    topLeft: { x: number; y: number }
-    topRight: { x: number; y: number }
+    topLeft:     { x: number; y: number }
+    topRight:    { x: number; y: number }
     bottomRight: { x: number; y: number }
-    bottomLeft: { x: number; y: number }
+    bottomLeft:  { x: number; y: number }
   }
-}
-
-export interface MockupCompositeStyle {
-  overlayBlend?: 'multiply' | 'over'
-  edgeBlur?: number
-  paperTone?: { r: number; g: number; b: number }
-  paperOpacity?: number
-  shadowBlur?: number
-  shadowOpacity?: number
-  shadowOffsetX?: number
-  shadowOffsetY?: number
 }
 
 export interface MockupBundle {
@@ -33,199 +23,297 @@ export interface MockupBundle {
   label: string
   emoji: string
   description: string
+  /** Representative swatch colors for future smart-matching (CSS hex strings) */
   palette: string[]
   templates: MockupTemplate[]
 }
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+/**
+ * Convert percentage-based corners (0.0–1.0) to absolute pixel CornerPoints.
+ * Call this just before passing corners to compositeOverlay.
+ */
 export function cornersToPixels(
   pct: MockupTemplate['corners'],
   width: number,
   height: number
 ): CornerPoints {
   return {
-    topLeft: { x: pct.topLeft.x * width, y: pct.topLeft.y * height },
-    topRight: { x: pct.topRight.x * width, y: pct.topRight.y * height },
+    topLeft:     { x: pct.topLeft.x     * width, y: pct.topLeft.y     * height },
+    topRight:    { x: pct.topRight.x    * width, y: pct.topRight.y    * height },
     bottomRight: { x: pct.bottomRight.x * width, y: pct.bottomRight.y * height },
-    bottomLeft: { x: pct.bottomLeft.x * width, y: pct.bottomLeft.y * height },
+    bottomLeft:  { x: pct.bottomLeft.x  * width, y: pct.bottomLeft.y  * height },
   }
 }
 
+/** Flat list of all templates across all bundles — used by the API route. */
 export function getAllTemplates(): MockupTemplate[] {
-  return MOCKUP_BUNDLES.flatMap((bundle) => bundle.templates)
+  return MOCKUP_BUNDLES.flatMap((b) => b.templates)
 }
 
 export function getTemplateById(id: string): MockupTemplate | undefined {
-  return getAllTemplates().find((template) => template.id === id)
+  return getAllTemplates().find((t) => t.id === id)
 }
 
 export function getBundleByTemplateId(templateId: string): MockupBundle | undefined {
-  return MOCKUP_BUNDLES.find((bundle) => bundle.templates.some((template) => template.id === templateId))
+  return MOCKUP_BUNDLES.find((b) => b.templates.some((t) => t.id === templateId))
 }
 
-// Local premium template catalog for phase 2.
-// These SVG scenes are deterministic, art-directed, and measured for stable compositing.
+// ─── Bundle Library ───────────────────────────────────────────────────────────
+//
+// NOTE FOR DEPLOYMENT:
+// Replace imageUrl / thumbUrl with your own hosted photos.
+// Corners are fractions (0.0–1.0) of the full-res image dimensions — measure
+// the 4 inner corners of the design surface in each photo before publishing.
+// Placeholder images use picsum.photos with fixed seeds for dev consistency.
+
 export const MOCKUP_BUNDLES: MockupBundle[] = [
+  // ── 1. Eucalyptus Suite ────────────────────────────────────────────────────
   {
-    id: 'sage-editorial',
-    label: 'Sage Editorial',
+    id: 'eucalyptus',
+    label: 'Eucalyptus Suite',
     emoji: '🌿',
-    description: 'Soft ivory surfaces, botanical edge styling, and calm editorial light.',
-    palette: ['#f4efe8', '#c4d0c0', '#7a8d77'],
+    description: 'Natural greenery, linen textures, warm sage tones',
+    palette: ['#7d9b7a', '#c8b89a', '#eae5dc'],
     templates: [
       {
-        id: 'sage-editorial-flatlay',
-        angleLabel: 'Editorial Flat Lay',
-        angleEmoji: '📋',
-        imageUrl: '/mockups/templates/rendered/sage-editorial-flatlay.png',
-        thumbUrl: '/mockups/templates/rendered/sage-editorial-flatlay-thumb.png',
-        composite: {
-          overlayBlend: 'multiply',
-          edgeBlur: 0.55,
-          paperTone: { r: 255, g: 252, b: 248 },
-          paperOpacity: 0.98,
-          shadowBlur: 18,
-          shadowOpacity: 0.16,
-          shadowOffsetX: 12,
-          shadowOffsetY: 18,
-        },
-        corners: {
-          topLeft: { x: 0.2867, y: 0.245 },
-          topRight: { x: 0.7133, y: 0.245 },
-          bottomRight: { x: 0.7133, y: 0.705 },
-          bottomLeft: { x: 0.2867, y: 0.705 },
-        },
-      },
-      {
-        id: 'sage-editorial-easel',
-        angleLabel: 'Standing Sign',
+        id: 'eucalyptus-easel',
+        angleLabel: 'Easel',
         angleEmoji: '🖼️',
-        imageUrl: '/mockups/templates/rendered/sage-editorial-easel.png',
-        thumbUrl: '/mockups/templates/rendered/sage-editorial-easel-thumb.png',
-        composite: {
-          overlayBlend: 'multiply',
-          edgeBlur: 0.68,
-          paperTone: { r: 254, g: 250, b: 244 },
-          paperOpacity: 0.98,
-          shadowBlur: 14,
-          shadowOpacity: 0.12,
-          shadowOffsetX: 10,
-          shadowOffsetY: 14,
-        },
+        imageUrl:  'https://picsum.photos/seed/euc-easel/1500/1000',
+        thumbUrl:  'https://picsum.photos/seed/euc-easel/480/320',
         corners: {
-          topLeft: { x: 0.36, y: 0.17 },
-          topRight: { x: 0.6533, y: 0.19 },
-          bottomRight: { x: 0.64, y: 0.82 },
-          bottomLeft: { x: 0.3467, y: 0.8 },
+          topLeft:     { x: 0.27, y: 0.09 },
+          topRight:    { x: 0.73, y: 0.09 },
+          bottomRight: { x: 0.73, y: 0.88 },
+          bottomLeft:  { x: 0.27, y: 0.88 },
+        },
+      },
+      {
+        id: 'eucalyptus-flatlay',
+        angleLabel: 'Flat Lay',
+        angleEmoji: '📋',
+        imageUrl:  'https://picsum.photos/seed/euc-flat/1500/1000',
+        thumbUrl:  'https://picsum.photos/seed/euc-flat/480/320',
+        corners: {
+          topLeft:     { x: 0.18, y: 0.14 },
+          topRight:    { x: 0.68, y: 0.12 },
+          bottomRight: { x: 0.71, y: 0.82 },
+          bottomLeft:  { x: 0.16, y: 0.84 },
+        },
+      },
+      {
+        id: 'eucalyptus-table',
+        angleLabel: 'Table Card',
+        angleEmoji: '🍃',
+        imageUrl:  'https://picsum.photos/seed/euc-table/1500/1000',
+        thumbUrl:  'https://picsum.photos/seed/euc-table/480/320',
+        corners: {
+          topLeft:     { x: 0.30, y: 0.17 },
+          topRight:    { x: 0.70, y: 0.15 },
+          bottomRight: { x: 0.72, y: 0.79 },
+          bottomLeft:  { x: 0.28, y: 0.81 },
         },
       },
     ],
   },
+
+  // ── 2. Dusty Rose Suite ────────────────────────────────────────────────────
   {
-    id: 'blush-romance',
-    label: 'Blush Romance',
+    id: 'dusty-rose',
+    label: 'Dusty Rose Suite',
     emoji: '🌸',
-    description: 'Ribbon-led wedding styling with warm blush accents and soft floral framing.',
-    palette: ['#f6eceb', '#e8c8cb', '#c58f97'],
+    description: 'Blush pinks, dried roses, soft romantic light',
+    palette: ['#c9848c', '#e8c4c8', '#f5ede8'],
     templates: [
       {
-        id: 'blush-romance-suite',
-        angleLabel: 'Ribbon Suite',
-        angleEmoji: '🎀',
-        imageUrl: '/mockups/templates/rendered/blush-romance-suite.png',
-        thumbUrl: '/mockups/templates/rendered/blush-romance-suite-thumb.png',
-        composite: {
-          overlayBlend: 'multiply',
-          edgeBlur: 0.5,
-          paperTone: { r: 255, g: 250, b: 251 },
-          paperOpacity: 0.98,
-          shadowBlur: 20,
-          shadowOpacity: 0.14,
-          shadowOffsetX: 12,
-          shadowOffsetY: 18,
-        },
+        id: 'dusty-rose-easel',
+        angleLabel: 'Easel',
+        angleEmoji: '🖼️',
+        imageUrl:  'https://picsum.photos/seed/rose-easel/1500/1000',
+        thumbUrl:  'https://picsum.photos/seed/rose-easel/480/320',
         corners: {
-          topLeft: { x: 0.2933, y: 0.23 },
-          topRight: { x: 0.7067, y: 0.23 },
-          bottomRight: { x: 0.7067, y: 0.73 },
-          bottomLeft: { x: 0.2933, y: 0.73 },
+          topLeft:     { x: 0.26, y: 0.10 },
+          topRight:    { x: 0.74, y: 0.10 },
+          bottomRight: { x: 0.73, y: 0.87 },
+          bottomLeft:  { x: 0.27, y: 0.87 },
         },
       },
       {
-        id: 'blush-romance-frame',
-        angleLabel: 'Gold Frame',
-        angleEmoji: '✨',
-        imageUrl: '/mockups/templates/rendered/blush-romance-frame.png',
-        thumbUrl: '/mockups/templates/rendered/blush-romance-frame-thumb.png',
-        composite: {
-          overlayBlend: 'multiply',
-          edgeBlur: 0.62,
-          paperTone: { r: 255, g: 251, b: 249 },
-          paperOpacity: 0.97,
-          shadowBlur: 16,
-          shadowOpacity: 0.1,
-          shadowOffsetX: 8,
-          shadowOffsetY: 12,
-        },
+        id: 'dusty-rose-flatlay',
+        angleLabel: 'Flat Lay',
+        angleEmoji: '📋',
+        imageUrl:  'https://picsum.photos/seed/rose-flat/1500/1000',
+        thumbUrl:  'https://picsum.photos/seed/rose-flat/480/320',
         corners: {
-          topLeft: { x: 0.3733, y: 0.135 },
-          topRight: { x: 0.6267, y: 0.135 },
-          bottomRight: { x: 0.6267, y: 0.835 },
-          bottomLeft: { x: 0.3733, y: 0.835 },
+          topLeft:     { x: 0.20, y: 0.18 },
+          topRight:    { x: 0.72, y: 0.16 },
+          bottomRight: { x: 0.74, y: 0.80 },
+          bottomLeft:  { x: 0.18, y: 0.82 },
+        },
+      },
+      {
+        id: 'dusty-rose-frame',
+        angleLabel: 'Wall Frame',
+        angleEmoji: '🪟',
+        imageUrl:  'https://picsum.photos/seed/rose-frame/1500/1000',
+        thumbUrl:  'https://picsum.photos/seed/rose-frame/480/320',
+        corners: {
+          topLeft:     { x: 0.24, y: 0.08 },
+          topRight:    { x: 0.76, y: 0.08 },
+          bottomRight: { x: 0.76, y: 0.92 },
+          bottomLeft:  { x: 0.24, y: 0.92 },
         },
       },
     ],
   },
+
+  // ── 3. Minimal White Suite ─────────────────────────────────────────────────
   {
-    id: 'modern-minimal',
-    label: 'Modern Minimal',
+    id: 'minimal-white',
+    label: 'Minimal White Suite',
     emoji: '🤍',
-    description: 'Stone, paper, and polished metal with restrained premium styling.',
-    palette: ['#f1ede8', '#d6cec4', '#9e9182'],
+    description: 'Clean studio light, white surfaces, modern elegance',
+    palette: ['#f0eeec', '#d6d3d0', '#1a1c1c'],
     templates: [
       {
-        id: 'modern-minimal-board',
-        angleLabel: 'Stone Board',
-        angleEmoji: '🪨',
-        imageUrl: '/mockups/templates/rendered/modern-minimal-board.png',
-        thumbUrl: '/mockups/templates/rendered/modern-minimal-board-thumb.png',
-        composite: {
-          overlayBlend: 'multiply',
-          edgeBlur: 0.58,
-          paperTone: { r: 252, g: 249, b: 244 },
-          paperOpacity: 0.98,
-          shadowBlur: 18,
-          shadowOpacity: 0.15,
-          shadowOffsetX: 12,
-          shadowOffsetY: 16,
-        },
+        id: 'minimal-easel',
+        angleLabel: 'Easel',
+        angleEmoji: '🖼️',
+        imageUrl:  'https://picsum.photos/seed/min-easel/1500/1000',
+        thumbUrl:  'https://picsum.photos/seed/min-easel/480/320',
         corners: {
-          topLeft: { x: 0.3, y: 0.21 },
-          topRight: { x: 0.7133, y: 0.225 },
-          bottomRight: { x: 0.7, y: 0.725 },
-          bottomLeft: { x: 0.2867, y: 0.71 },
+          topLeft:     { x: 0.28, y: 0.10 },
+          topRight:    { x: 0.72, y: 0.10 },
+          bottomRight: { x: 0.72, y: 0.88 },
+          bottomLeft:  { x: 0.28, y: 0.88 },
         },
       },
       {
-        id: 'modern-minimal-frame',
-        angleLabel: 'Shadow Frame',
-        angleEmoji: '🪟',
-        imageUrl: '/mockups/templates/rendered/modern-minimal-frame.png',
-        thumbUrl: '/mockups/templates/rendered/modern-minimal-frame-thumb.png',
-        composite: {
-          overlayBlend: 'multiply',
-          edgeBlur: 0.66,
-          paperTone: { r: 253, g: 251, b: 247 },
-          paperOpacity: 0.97,
-          shadowBlur: 16,
-          shadowOpacity: 0.1,
-          shadowOffsetX: 8,
-          shadowOffsetY: 12,
-        },
+        id: 'minimal-clipboard',
+        angleLabel: 'Clipboard',
+        angleEmoji: '📎',
+        imageUrl:  'https://picsum.photos/seed/min-clip/1500/1000',
+        thumbUrl:  'https://picsum.photos/seed/min-clip/480/320',
         corners: {
-          topLeft: { x: 0.3467, y: 0.135 },
-          topRight: { x: 0.6533, y: 0.135 },
-          bottomRight: { x: 0.6533, y: 0.835 },
-          bottomLeft: { x: 0.3467, y: 0.835 },
+          topLeft:     { x: 0.22, y: 0.12 },
+          topRight:    { x: 0.62, y: 0.10 },
+          bottomRight: { x: 0.64, y: 0.86 },
+          bottomLeft:  { x: 0.20, y: 0.88 },
+        },
+      },
+      {
+        id: 'minimal-frame',
+        angleLabel: 'Wall Frame',
+        angleEmoji: '🪟',
+        imageUrl:  'https://picsum.photos/seed/min-frame/1500/1000',
+        thumbUrl:  'https://picsum.photos/seed/min-frame/480/320',
+        corners: {
+          topLeft:     { x: 0.25, y: 0.08 },
+          topRight:    { x: 0.75, y: 0.08 },
+          bottomRight: { x: 0.75, y: 0.92 },
+          bottomLeft:  { x: 0.25, y: 0.92 },
+        },
+      },
+    ],
+  },
+
+  // ── 4. Rustic Garden Suite ─────────────────────────────────────────────────
+  {
+    id: 'rustic-garden',
+    label: 'Rustic Garden Suite',
+    emoji: '🌻',
+    description: 'Wood textures, outdoor greenery, golden hour warmth',
+    palette: ['#8b6f47', '#7d9b7a', '#e8d5a3'],
+    templates: [
+      {
+        id: 'rustic-easel',
+        angleLabel: 'Easel',
+        angleEmoji: '🖼️',
+        imageUrl:  'https://picsum.photos/seed/rus-easel/1500/1000',
+        thumbUrl:  'https://picsum.photos/seed/rus-easel/480/320',
+        corners: {
+          topLeft:     { x: 0.26, y: 0.09 },
+          topRight:    { x: 0.74, y: 0.09 },
+          bottomRight: { x: 0.73, y: 0.87 },
+          bottomLeft:  { x: 0.27, y: 0.87 },
+        },
+      },
+      {
+        id: 'rustic-flatlay',
+        angleLabel: 'Flat Lay',
+        angleEmoji: '📋',
+        imageUrl:  'https://picsum.photos/seed/rus-flat/1500/1000',
+        thumbUrl:  'https://picsum.photos/seed/rus-flat/480/320',
+        corners: {
+          topLeft:     { x: 0.17, y: 0.16 },
+          topRight:    { x: 0.67, y: 0.13 },
+          bottomRight: { x: 0.70, y: 0.83 },
+          bottomLeft:  { x: 0.15, y: 0.85 },
+        },
+      },
+      {
+        id: 'rustic-garden-display',
+        angleLabel: 'Garden Display',
+        angleEmoji: '🌿',
+        imageUrl:  'https://picsum.photos/seed/rus-garden/1500/1000',
+        thumbUrl:  'https://picsum.photos/seed/rus-garden/480/320',
+        corners: {
+          topLeft:     { x: 0.27, y: 0.11 },
+          topRight:    { x: 0.73, y: 0.11 },
+          bottomRight: { x: 0.73, y: 0.89 },
+          bottomLeft:  { x: 0.27, y: 0.89 },
+        },
+      },
+    ],
+  },
+
+  // ── 5. Luxury Gold Suite ───────────────────────────────────────────────────
+  {
+    id: 'luxury-gold',
+    label: 'Luxury Gold Suite',
+    emoji: '✨',
+    description: 'Marble surfaces, gold accents, black tie elegance',
+    palette: ['#c9a84c', '#e8e0d5', '#2a2420'],
+    templates: [
+      {
+        id: 'luxury-flatlay',
+        angleLabel: 'Flat Lay',
+        angleEmoji: '📋',
+        imageUrl:  'https://picsum.photos/seed/lux-flat/1500/1000',
+        thumbUrl:  'https://picsum.photos/seed/lux-flat/480/320',
+        corners: {
+          topLeft:     { x: 0.20, y: 0.22 },
+          topRight:    { x: 0.76, y: 0.19 },
+          bottomRight: { x: 0.78, y: 0.76 },
+          bottomLeft:  { x: 0.18, y: 0.79 },
+        },
+      },
+      {
+        id: 'luxury-frame',
+        angleLabel: 'Wall Frame',
+        angleEmoji: '🪟',
+        imageUrl:  'https://picsum.photos/seed/lux-frame/1500/1000',
+        thumbUrl:  'https://picsum.photos/seed/lux-frame/480/320',
+        corners: {
+          topLeft:     { x: 0.23, y: 0.09 },
+          topRight:    { x: 0.77, y: 0.09 },
+          bottomRight: { x: 0.77, y: 0.91 },
+          bottomLeft:  { x: 0.23, y: 0.91 },
+        },
+      },
+      {
+        id: 'luxury-table',
+        angleLabel: 'Table Card',
+        angleEmoji: '🥂',
+        imageUrl:  'https://picsum.photos/seed/lux-table/1500/1000',
+        thumbUrl:  'https://picsum.photos/seed/lux-table/480/320',
+        corners: {
+          topLeft:     { x: 0.31, y: 0.19 },
+          topRight:    { x: 0.69, y: 0.17 },
+          bottomRight: { x: 0.71, y: 0.77 },
+          bottomLeft:  { x: 0.29, y: 0.79 },
         },
       },
     ],

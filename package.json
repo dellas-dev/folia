@@ -4,7 +4,6 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "mockups:rasterize": "node scripts/rasterize-mockup-templates.mjs",
     "build": "next build --turbopack",
     "start": "next start"
   },

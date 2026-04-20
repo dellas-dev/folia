@@ -1,21 +1,8 @@
-import { readFile } from 'node:fs/promises'
-import path from 'node:path'
-
 import { getCurrentProfile } from '@/lib/clerk/auth'
 import { cornersToPixels, getTemplateById } from '@/lib/mockup-templates'
 import { compositeOverlay, prepareReference } from '@/lib/perspective/warp'
 import { buildGenerationR2Key, getSignedR2Url, isOwnedR2Key, uploadToR2 } from '@/lib/r2/client'
 import { createServerClient } from '@/lib/supabase/server'
-
-async function loadTemplateAsset(src: string): Promise<Buffer> {
-  if (src.startsWith('/')) {
-    return readFile(path.join(process.cwd(), 'public', src.replace(/^\/+/, '')))
-  }
-
-  const response = await fetch(src)
-  if (!response.ok) throw new Error(`Failed to fetch template image: ${src}`)
-  return Buffer.from(await response.arrayBuffer())
-}
 
 export async function POST(request: Request) {
   const { user, profile } = await getCurrentProfile()
@@ -50,18 +37,20 @@ export async function POST(request: Request) {
   try {
     const startedAt = Date.now()
 
-    // 1. Fetch design from R2 and load the template asset in parallel
+    // 1. Fetch design from R2 and template image from its hosted URL in parallel
     const designSignedUrl = await getSignedR2Url(body.design_r2_key, 300)
 
-    const [designRes, refBuffer] = await Promise.all([
+    const [designRes, templateRes] = await Promise.all([
       fetch(designSignedUrl),
-      loadTemplateAsset(template.imageUrl),
+      fetch(template.imageUrl),
     ])
 
-    if (!designRes.ok) throw new Error('Failed to fetch design image.')
+    if (!designRes.ok)   throw new Error('Failed to fetch design image.')
+    if (!templateRes.ok) throw new Error(`Failed to fetch template image: ${template.id}`)
 
-    const [designBuffer] = await Promise.all([
+    const [designBuffer, refBuffer] = await Promise.all([
       designRes.arrayBuffer().then((b) => Buffer.from(b)),
+      templateRes.arrayBuffer().then((b) => Buffer.from(b)),
     ])
 
     // 2. Resize reference to bounded size — corners must match this coordinate space
@@ -73,7 +62,7 @@ export async function POST(request: Request) {
     console.log(`[mockup/template] Template: ${template.id}, ref: ${refW}×${refH}, corners:`, corners)
 
     // 4. Perspective warp + multiply composite
-    const composited = await compositeOverlay(designBuffer, refBuffer, corners, refW, refH, template.composite)
+    const composited = await compositeOverlay(designBuffer, refBuffer, corners, refW, refH)
 
     // 5. Upload result to R2
     const generationId = crypto.randomUUID()

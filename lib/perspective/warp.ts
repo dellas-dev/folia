@@ -7,7 +7,6 @@ import {
   invertMatrix3x3,
   isInsideQuad,
 } from './homography'
-import type { MockupCompositeStyle } from '../mockup-templates'
 
 const MAX_DESIGN_PX = 1200
 const MAX_REF_PX = 1500
@@ -149,11 +148,10 @@ export async function perspectiveWarp(
 
 // Creates a fully-opaque white quad mask in the shape of the destination corners.
 // Used to erase the existing design on the reference photo before placing the new one.
-async function createSurfaceFill(
+async function createWhiteFill(
   corners: CornerPoints,
   refWidth: number,
-  refHeight: number,
-  options?: MockupCompositeStyle
+  refHeight: number
 ): Promise<Buffer> {
   const dst: Point[] = [
     corners.topLeft,
@@ -176,47 +174,14 @@ async function createSurfaceFill(
     for (let x = bboxX0; x <= bboxX1; x++) {
       if (!isInsideQuad({ x, y }, quad)) continue
       const i = (y * refWidth + x) * 4
-      outData[i] = options?.paperTone?.r ?? 255
-      outData[i + 1] = options?.paperTone?.g ?? 255
-      outData[i + 2] = options?.paperTone?.b ?? 255
-      outData[i + 3] = Math.round((options?.paperOpacity ?? 1) * 255)
+      outData[i] = 255
+      outData[i + 1] = 255
+      outData[i + 2] = 255
+      outData[i + 3] = 255
     }
   }
 
   return sharp(outData, { raw: { width: refWidth, height: refHeight, channels: 4 } })
-    .png()
-    .toBuffer()
-}
-
-async function createQuadShadow(
-  fillBuffer: Buffer,
-  refWidth: number,
-  refHeight: number,
-  options?: MockupCompositeStyle
-): Promise<Buffer | null> {
-  const shadowOpacity = options?.shadowOpacity ?? 0
-  if (shadowOpacity <= 0) return null
-
-  const rawFill = await sharp(fillBuffer)
-    .ensureAlpha()
-    .raw()
-    .toBuffer({ resolveWithObject: true })
-
-  const outData = Buffer.alloc(refWidth * refHeight * 4, 0)
-
-  for (let i = 0; i < rawFill.data.length; i += 4) {
-    const alpha = rawFill.data[i + 3]
-    if (alpha === 0) continue
-    outData[i] = 28
-    outData[i + 1] = 22
-    outData[i + 2] = 18
-    outData[i + 3] = Math.round(alpha * shadowOpacity)
-  }
-
-  return sharp(outData, {
-    raw: { width: refWidth, height: refHeight, channels: 4 },
-  })
-    .blur(options?.shadowBlur ?? 14)
     .png()
     .toBuffer()
 }
@@ -317,39 +282,24 @@ export async function compositeOverlay(
   refBuffer: Buffer,
   corners: CornerPoints,
   refWidth: number,
-  refHeight: number,
-  options?: MockupCompositeStyle
+  refHeight: number
 ): Promise<Buffer> {
-  const [warpedPng, surfaceFill] = await Promise.all([
+  const [warpedPng, whiteFill] = await Promise.all([
     perspectiveWarp(designBuffer, corners, refWidth, refHeight),
-    createSurfaceFill(corners, refWidth, refHeight, options),
+    createWhiteFill(corners, refWidth, refHeight),
   ])
 
   // Soften the hard alpha edge so the design looks printed rather than sticker-pasted.
   // blur(0.7) softens the transparent→opaque boundary by ~1–2px without visibly
   // blurring the interior of the design at typical output sizes.
-  const softWarp = await sharp(warpedPng).blur(options?.edgeBlur ?? 0.7).toBuffer()
-  const quadShadow = await createQuadShadow(surfaceFill, refWidth, refHeight, options)
-
-  const composites: sharp.OverlayOptions[] = []
-
-  if (quadShadow) {
-    composites.push({
-      input: quadShadow,
-      blend: 'over',
-      left: options?.shadowOffsetX ?? 0,
-      top: options?.shadowOffsetY ?? 0,
-    })
-  }
-
-  composites.push(
-    { input: surfaceFill, blend: 'over' },
-    { input: softWarp, blend: options?.overlayBlend ?? 'multiply' }
-  )
+  const softWarp = await sharp(warpedPng).blur(0.7).toBuffer()
 
   return sharp(refBuffer)
     .resize(MAX_REF_PX, MAX_REF_PX, { fit: 'inside', withoutEnlargement: true })
-    .composite(composites)
+    .composite([
+      { input: whiteFill, blend: 'over' },
+      { input: softWarp, blend: 'multiply' },
+    ])
     .png()
     .toBuffer()
 }
