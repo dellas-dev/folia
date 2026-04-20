@@ -202,11 +202,16 @@ export async function compositeOverlay(
     createWhiteFill(corners, refWidth, refHeight),
   ])
 
+  // Soften the hard alpha edge so the design looks printed rather than sticker-pasted.
+  // blur(0.7) softens the transparent→opaque boundary by ~1–2px without visibly
+  // blurring the interior of the design at typical output sizes.
+  const softWarp = await sharp(warpedPng).blur(0.7).toBuffer()
+
   return sharp(refBuffer)
     .resize(MAX_REF_PX, MAX_REF_PX, { fit: 'inside', withoutEnlargement: true })
     .composite([
       { input: whiteFill, blend: 'over' },
-      { input: warpedPng, blend: 'multiply' },
+      { input: softWarp, blend: 'multiply' },
     ])
     .png()
     .toBuffer()
