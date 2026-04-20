@@ -19,7 +19,7 @@ import {
 
 import { useToast } from '@/components/ui/toast-provider'
 import { downloadR2File } from '@/lib/download'
-import { MOCKUP_TEMPLATES, type MockupTemplate } from '@/lib/mockup-templates'
+import { MOCKUP_BUNDLES, type MockupBundle, type MockupTemplate } from '@/lib/mockup-templates'
 import { cn } from '@/lib/utils'
 import { MOCKUP_SCENE_OPTIONS, type MockupScenePreset, type UserTier } from '@/types'
 
@@ -64,6 +64,7 @@ export function MockupForm({ tier, startingCredits, initialInvitationKey, initia
   const [analyzingRef, setAnalyzingRef] = useState(false)
 
   // Templates tab state
+  const [selectedBundle, setSelectedBundle] = useState<MockupBundle | null>(null)
   const [selectedTemplate, setSelectedTemplate] = useState<MockupTemplate | null>(null)
   const [templateSubmitting, setTemplateSubmitting] = useState(false)
   const [templateResultUrl, setTemplateResultUrl] = useState<string | null>(null)
@@ -390,46 +391,46 @@ export function MockupForm({ tier, startingCredits, initialInvitationKey, initia
                 ) : null}
               </div>
 
-              {/* Template picker */}
+              {/* Step 1 — Bundle selector */}
               <div className="space-y-2.5">
                 <p className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: '#70787a' }}>
-                  Choose Template
+                  Choose Suite
                 </p>
-                <div className="grid grid-cols-2 gap-2.5">
-                  {MOCKUP_TEMPLATES.map((tpl) => {
-                    const active = selectedTemplate?.id === tpl.id
+                <div className="grid grid-cols-2 gap-2">
+                  {MOCKUP_BUNDLES.map((bundle) => {
+                    const active = selectedBundle?.id === bundle.id
                     return (
                       <button
-                        key={tpl.id}
+                        key={bundle.id}
                         type="button"
-                        onClick={() => setSelectedTemplate(tpl)}
+                        onClick={() => {
+                          setSelectedBundle(bundle)
+                          setSelectedTemplate(null)
+                        }}
                         className={cn(
-                          'relative overflow-hidden rounded-[1rem] text-left transition-all duration-200',
+                          'flex items-start gap-2.5 rounded-[0.875rem] p-3 text-left transition-all duration-200',
                           active
-                            ? 'shadow-[0_0_0_2px_#37656b,0_4px_16px_rgba(55,101,107,0.18)]'
-                            : 'shadow-[0_1px_4px_rgba(55,101,107,0.07)] hover:-translate-y-0.5 hover:shadow-[0_4px_14px_rgba(55,101,107,0.12)]'
+                            ? 'shadow-[0_0_0_2px_#37656b]'
+                            : 'hover:shadow-[0_2px_8px_rgba(55,101,107,0.10)]'
                         )}
-                        style={{ backgroundColor: '#ffffff' }}
+                        style={{ backgroundColor: active ? 'rgba(55,101,107,0.07)' : '#f4f3f3' }}
                       >
-                        <div className="relative h-24 overflow-hidden rounded-t-[1rem] bg-[#f4f3f3]">
-                          <img
-                            src={tpl.thumbUrl}
-                            alt={tpl.label}
-                            className="h-full w-full object-cover"
-                            loading="lazy"
-                          />
-                          {active ? (
-                            <div className="absolute inset-0 flex items-center justify-center" style={{ backgroundColor: 'rgba(55,101,107,0.35)' }}>
-                              <CheckCircle2 className="size-7 text-white drop-shadow" />
-                            </div>
-                          ) : null}
+                        {/* Palette swatches */}
+                        <div className="mt-0.5 flex shrink-0 flex-col gap-0.5">
+                          {bundle.palette.map((hex) => (
+                            <span
+                              key={hex}
+                              className="block size-3 rounded-full"
+                              style={{ backgroundColor: hex }}
+                            />
+                          ))}
                         </div>
-                        <div className="px-2.5 py-2">
+                        <div className="min-w-0">
                           <p className="text-xs font-semibold leading-tight" style={{ color: active ? '#37656b' : '#1a1c1c', fontFamily: 'var(--font-heading)' }}>
-                            {tpl.emoji} {tpl.label}
+                            {bundle.emoji} {bundle.label}
                           </p>
                           <p className="mt-0.5 text-[10px] leading-4 line-clamp-2" style={{ color: '#70787a' }}>
-                            {tpl.description}
+                            {bundle.description}
                           </p>
                         </div>
                       </button>
@@ -437,6 +438,58 @@ export function MockupForm({ tier, startingCredits, initialInvitationKey, initia
                   })}
                 </div>
               </div>
+
+              {/* Step 2 — Angle selector (visible only after bundle chosen) */}
+              {selectedBundle ? (
+                <div className="space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: '#70787a' }}>
+                      Choose Angle
+                    </p>
+                    <span className="text-[10px]" style={{ color: '#c0c8c9' }}>
+                      {selectedBundle.templates.length} options
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    {selectedBundle.templates.map((tpl) => {
+                      const active = selectedTemplate?.id === tpl.id
+                      return (
+                        <button
+                          key={tpl.id}
+                          type="button"
+                          onClick={() => setSelectedTemplate(tpl)}
+                          className={cn(
+                            'relative overflow-hidden rounded-[0.875rem] text-left transition-all duration-200',
+                            active
+                              ? 'shadow-[0_0_0_2px_#37656b,0_4px_12px_rgba(55,101,107,0.18)]'
+                              : 'shadow-[0_1px_3px_rgba(55,101,107,0.07)] hover:-translate-y-0.5'
+                          )}
+                          style={{ backgroundColor: '#ffffff' }}
+                        >
+                          <div className="relative h-16 overflow-hidden rounded-t-[0.875rem] bg-[#f4f3f3]">
+                            <img
+                              src={tpl.thumbUrl}
+                              alt={tpl.angleLabel}
+                              className="h-full w-full object-cover"
+                              loading="lazy"
+                            />
+                            {active ? (
+                              <div className="absolute inset-0 flex items-center justify-center" style={{ backgroundColor: 'rgba(55,101,107,0.4)' }}>
+                                <CheckCircle2 className="size-5 text-white drop-shadow" />
+                              </div>
+                            ) : null}
+                          </div>
+                          <div className="px-1.5 py-1.5 text-center">
+                            <p className="text-[10px] font-semibold leading-tight" style={{ color: active ? '#37656b' : '#1a1c1c' }}>
+                              {tpl.angleEmoji} {tpl.angleLabel}
+                            </p>
+                          </div>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              ) : null}
 
               {/* Alerts */}
               {error ? (
@@ -492,7 +545,7 @@ export function MockupForm({ tier, startingCredits, initialInvitationKey, initia
                   />
                 </div>
                 <p className="text-[10px] font-bold uppercase tracking-[0.18em]" style={{ color: '#70787a' }}>
-                  Template Result — {selectedTemplate?.label}
+                  {selectedBundle?.emoji} {selectedBundle?.label} — {selectedTemplate?.angleLabel}
                 </p>
                 <div className="mt-auto flex gap-2.5">
                   <button
@@ -521,11 +574,14 @@ export function MockupForm({ tier, startingCredits, initialInvitationKey, initia
                 {selectedTemplate ? (
                   <>
                     <div className="overflow-hidden rounded-[1rem] shadow-sm" style={{ width: 160 }}>
-                      <img src={selectedTemplate.thumbUrl} alt={selectedTemplate.label} className="h-24 w-full object-cover" />
+                      <img src={selectedTemplate.thumbUrl} alt={selectedTemplate.angleLabel} className="h-24 w-full object-cover" />
                     </div>
                     <div>
                       <p className="text-sm font-semibold" style={{ color: '#404849', fontFamily: 'var(--font-heading)' }}>
-                        {selectedTemplate.emoji} {selectedTemplate.label}
+                        {selectedBundle?.emoji} {selectedBundle?.label}
+                      </p>
+                      <p className="mt-0.5 text-xs" style={{ color: '#70787a' }}>
+                        {selectedTemplate.angleEmoji} {selectedTemplate.angleLabel}
                       </p>
                       <p className="mt-1 text-xs leading-5" style={{ color: '#70787a' }}>
                         {invitationKey ? 'Ready — click Apply to Template.' : 'Upload your design to continue.'}
@@ -542,7 +598,7 @@ export function MockupForm({ tier, startingCredits, initialInvitationKey, initia
                         Template Preview
                       </p>
                       <p className="mt-1 text-xs leading-5" style={{ color: '#70787a' }}>
-                        Choose a template and upload your design to see the result.
+                        Choose a suite, pick an angle, then upload your design.
                       </p>
                     </div>
                   </>
