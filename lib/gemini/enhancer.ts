@@ -561,6 +561,35 @@ Write 55-65 word comma-separated prompt. No sentences. No narrative. Output ONLY
   }
 }
 
+export async function detectMockupCorners(
+  imageBase64: string,
+  mimeType: string,
+  imageWidth: number,
+  imageHeight: number
+): Promise<{ topLeft: { x: number; y: number }; topRight: { x: number; y: number }; bottomRight: { x: number; y: number }; bottomLeft: { x: number; y: number } }> {
+  const systemPrompt = `You are a computer vision expert that identifies surface corners in product photography for mockup creation. Return ONLY valid JSON with no markdown fences, no explanation, no extra text.`
+
+  const userMessage = `The image dimensions are ${imageWidth}×${imageHeight} pixels.
+
+Find the 4 corners of the main design display surface in this photo. The surface is the rectangular board, paper, easel card, sign, framed artwork, or flat-lay invitation that shows a design/artwork.
+
+Return ONLY this exact JSON structure with integer pixel coordinates:
+{"topLeft":{"x":0,"y":0},"topRight":{"x":0,"y":0},"bottomRight":{"x":0,"y":0},"bottomLeft":{"x":0,"y":0}}`
+
+  try {
+    const raw = await callGroqVision(imageBase64, mimeType, userMessage, systemPrompt)
+    const match = raw.match(/\{[\s\S]*\}/)
+    if (!match) throw new Error('No JSON in corner detection response')
+    const parsed = JSON.parse(match[0]) as { topLeft: { x: number; y: number }; topRight: { x: number; y: number }; bottomRight: { x: number; y: number }; bottomLeft: { x: number; y: number } }
+    return parsed
+  } catch (error: any) {
+    const msg = error?.message ?? ''
+    console.error('[Groq] detectMockupCorners error:', msg)
+    if (msg.includes('429') || msg.includes('rate_limit')) throw new Error('GROQ_RATE_LIMIT')
+    throw new Error('CORNER_DETECTION_FAILED')
+  }
+}
+
 export async function analyzeInvitationForMockup(
   invitationImageBase64: string,
   mimeType: string,
