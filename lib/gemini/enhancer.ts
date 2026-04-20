@@ -568,31 +568,37 @@ type CornerDetectionResult = {
   bottomLeft: { x: number; y: number }
 }
 
-// Returns centered fallback corners (middle 65% of image) when vision detection fails
+// Returns centered fallback corners (middle 60% of image) when vision detection fails
 function fallbackCorners(w: number, h: number): CornerDetectionResult {
-  const mx = Math.round(w * 0.18)
-  const my = Math.round(h * 0.12)
+  return pctToPixels({ topLeft: { x: 0.20, y: 0.15 }, topRight: { x: 0.80, y: 0.15 }, bottomRight: { x: 0.80, y: 0.85 }, bottomLeft: { x: 0.20, y: 0.85 } }, w, h)
+}
+
+// Converts percentage-based corners (0.0–1.0) to pixel coordinates
+function pctToPixels(
+  pct: { topLeft: { x: number; y: number }; topRight: { x: number; y: number }; bottomRight: { x: number; y: number }; bottomLeft: { x: number; y: number } },
+  w: number,
+  h: number
+): CornerDetectionResult {
   return {
-    topLeft:     { x: mx,     y: my     },
-    topRight:    { x: w - mx, y: my     },
-    bottomRight: { x: w - mx, y: h - my },
-    bottomLeft:  { x: mx,     y: h - my },
+    topLeft:     { x: Math.round(pct.topLeft.x * w),     y: Math.round(pct.topLeft.y * h)     },
+    topRight:    { x: Math.round(pct.topRight.x * w),    y: Math.round(pct.topRight.y * h)    },
+    bottomRight: { x: Math.round(pct.bottomRight.x * w), y: Math.round(pct.bottomRight.y * h) },
+    bottomLeft:  { x: Math.round(pct.bottomLeft.x * w),  y: Math.round(pct.bottomLeft.y * h)  },
   }
 }
 
-function parseCornerJSON(raw: string): CornerDetectionResult | null {
-  // Strip markdown code fences if present
+function parseCornerResponse(raw: string, w: number, h: number): CornerDetectionResult | null {
   const stripped = raw.replace(/```[a-z]*\n?/gi, '').replace(/```/g, '').trim()
-  // Find the outermost JSON object
   const match = stripped.match(/\{[\s\S]*\}/)
   if (!match) return null
   try {
-    const obj = JSON.parse(match[0]) as CornerDetectionResult
-    // Validate all 4 corners are present with numeric x/y
+    const obj = JSON.parse(match[0]) as { topLeft: { x: number; y: number }; topRight: { x: number; y: number }; bottomRight: { x: number; y: number }; bottomLeft: { x: number; y: number } }
     for (const key of ['topLeft', 'topRight', 'bottomRight', 'bottomLeft'] as const) {
       if (typeof obj[key]?.x !== 'number' || typeof obj[key]?.y !== 'number') return null
     }
-    return obj
+    // Values ≤ 1.5 → treat as percentages, otherwise treat as pixels
+    const isPercent = obj.topLeft.x <= 1.5 && obj.topRight.x <= 1.5
+    return isPercent ? pctToPixels(obj, w, h) : (obj as CornerDetectionResult)
   } catch {
     return null
   }
@@ -604,34 +610,40 @@ export async function detectMockupCorners(
   imageWidth: number,
   imageHeight: number
 ): Promise<CornerDetectionResult> {
-  const systemPrompt = `You are a precise computer vision system. Your only output is a single JSON object — no explanation, no markdown, no extra text.`
+  const systemPrompt = `You are a precise computer vision assistant. Output ONLY a JSON object — no explanation, no markdown, no extra text.`
 
-  const userMessage = `Image size: ${imageWidth}x${imageHeight} pixels.
+  // Ask for percentages (0.0–1.0) — vision models are far more accurate with
+  // relative positions than absolute pixel coordinates
+  const userMessage = `Look at this image carefully.
 
-Task: Find the 4 pixel-coordinate corners of the rectangular design surface (board, sign, paper, easel card, or framed area) in this photo.
+Find the rectangular design surface: the board, paper, easel sign, or framed card where artwork/text is displayed.
 
-Output ONLY this JSON (integer values):
-{"topLeft":{"x":NUMBER,"y":NUMBER},"topRight":{"x":NUMBER,"y":NUMBER},"bottomRight":{"x":NUMBER,"y":NUMBER},"bottomLeft":{"x":NUMBER,"y":NUMBER}}`
+Return the 4 corners as PERCENTAGE values (0.0 to 1.0) of the image width and height.
+- x=0.0 means far left edge, x=1.0 means far right edge
+- y=0.0 means top edge, y=1.0 means bottom edge
+
+Example for a sign that takes up the center-right area:
+{"topLeft":{"x":0.35,"y":0.10},"topRight":{"x":0.90,"y":0.08},"bottomRight":{"x":0.88,"y":0.82},"bottomLeft":{"x":0.33,"y":0.85}}
+
+Output ONLY the JSON, nothing else.`
 
   try {
     const raw = await callGroqVision(imageBase64, mimeType, userMessage, systemPrompt)
-    console.log('[Groq] detectMockupCorners raw response:', raw.slice(0, 300))
+    console.log('[Groq] detectMockupCorners raw:', raw.slice(0, 400))
 
-    const parsed = parseCornerJSON(raw)
+    const parsed = parseCornerResponse(raw, imageWidth, imageHeight)
     if (parsed) {
-      console.log('[Groq] detectMockupCorners parsed:', parsed)
+      console.log('[Groq] detectMockupCorners result (px):', parsed)
       return parsed
     }
 
-    // Groq returned something but it wasn't parseable — use fallback
-    console.warn('[Groq] detectMockupCorners: unparseable response, using fallback corners')
+    console.warn('[Groq] detectMockupCorners: unparseable, using fallback')
     return fallbackCorners(imageWidth, imageHeight)
   } catch (error: any) {
     const msg = error?.message ?? ''
     console.error('[Groq] detectMockupCorners error:', msg)
     if (msg.includes('429') || msg.includes('rate_limit')) throw new Error('GROQ_RATE_LIMIT')
-    // API error — use fallback rather than failing the whole request
-    console.warn('[Groq] detectMockupCorners: API error, using fallback corners')
+    console.warn('[Groq] detectMockupCorners: API error, using fallback')
     return fallbackCorners(imageWidth, imageHeight)
   }
 }
