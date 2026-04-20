@@ -208,114 +208,46 @@ export async function detectColorTemperature(bgBuffer: Buffer): Promise<'warm' |
   return 'neutral'
 }
 
-// Centers the design on a generated background using white-paper + multiply technique:
-//
-// Pipeline:
-// 1. Resize + flatten design to white background (RGBA)
-// 2. Color temperature tint (via .tint())
-// 3. Paper grain (soft-light, ~9% opacity, RGBA→RGBA safe)
-// 4. 0.4px edge blur
-// 5. Compute placement corners with 3% top-perspective convergence
-// 6. perspectiveWarp() → design warped on bg-sized transparent canvas
-// 7. createWhiteFill() → white quad on same canvas (establishes opaque paper base)
-// 8. Composite: shadow (over) → white fill (over) → warped design (multiply)
-//    white fill ensures multiply(255, design) = design — card never transparent
+// Places the design centered on a generated background.
+// Uses white-paper-then-multiply so the card is always fully opaque:
+//   Step 1: white rectangle (over) → establishes solid white "paper" at that position
+//   Step 2: design (multiply on white = design) → colors render correctly, never transparent
+// No manual shadows — the Flux background supplies natural ambient shadow.
 export async function compositeDesignCentered(
   designBuffer: Buffer,
   backgroundBuffer: Buffer,
-  colorTemp: 'warm' | 'cool' | 'neutral' = 'neutral'
+  _colorTemp: 'warm' | 'cool' | 'neutral' = 'neutral'
 ): Promise<Buffer> {
   const bgMeta = await sharp(backgroundBuffer).metadata()
   const bgW = bgMeta.width!
   const bgH = bgMeta.height!
 
-  const maxW = Math.round(bgW * 0.56)
-  const maxH = Math.round(bgH * 0.68)
+  const maxW = Math.round(bgW * 0.55)
+  const maxH = Math.round(bgH * 0.70)
 
-  // ── 1. Flatten to white, resize, ensure RGBA (consistent channels for grain) ──
-  let design = await sharp(designBuffer)
+  // Flatten to solid white (removes transparency), resize to fit center area
+  const design = await sharp(designBuffer)
     .resize(maxW, maxH, { fit: 'inside', withoutEnlargement: false })
     .flatten({ background: { r: 255, g: 255, b: 255 } })
-    .ensureAlpha()
     .png()
     .toBuffer()
 
   const { width: dW, height: dH } = await sharp(design).metadata() as { width: number; height: number }
 
-  // ── 2. Color temperature tint ─────────────────────────────────────────────
-  const TINT_MAP: Record<string, { r: number; g: number; b: number } | null> = {
-    warm:    { r: 255, g: 245, b: 224 },
-    cool:    { r: 224, g: 238, b: 255 },
-    neutral: null,
-  }
-  const tint = TINT_MAP[colorTemp]
-  if (tint) {
-    design = await sharp(design).tint(tint).ensureAlpha().png().toBuffer()
-  }
-
-  // ── 3. Paper grain (RGBA noise, soft-light) ───────────────────────────────
-  const grainData = Buffer.alloc(dW * dH * 4)
-  for (let i = 0; i < dW * dH; i++) {
-    const v = 128 + Math.round((Math.random() - 0.5) * 52)
-    grainData[i * 4]     = v
-    grainData[i * 4 + 1] = v
-    grainData[i * 4 + 2] = v
-    grainData[i * 4 + 3] = 22  // ~9% opacity
-  }
-  const grainBuf = await sharp(grainData, {
-    raw: { width: dW, height: dH, channels: 4 },
-  }).png().toBuffer()
-  design = await sharp(design)
-    .composite([{ input: grainBuf, blend: 'soft-light' }])
-    .png()
-    .toBuffer()
-
-  // ── 4. Edge blur ──────────────────────────────────────────────────────────
-  design = await sharp(design).blur(0.4).png().toBuffer()
-
-  // ── 5. Placement corners: centered + 3% top-perspective convergence ───────
-  // Slight trapezoid makes the card look naturally placed rather than perfectly
-  // aligned, simulating a real top-down photo with very slight viewing angle.
+  // Center horizontally and vertically
   const left = Math.round((bgW - dW) / 2)
-  const top  = Math.round((bgH - dH) / 2 - dH * 0.04)
-  const shrink = Math.round(dW * 0.03)  // top edge converges 3% per side
+  const top  = Math.round((bgH - dH) / 2)
 
-  const corners: CornerPoints = {
-    topLeft:     { x: left + shrink,        y: top },
-    topRight:    { x: left + dW - shrink,   y: top },
-    bottomRight: { x: left + dW + shrink,   y: top + dH },
-    bottomLeft:  { x: left - shrink,        y: top + dH },
-  }
+  // White paper base — same dimensions as design, RGB solid white
+  const whitePaper = await sharp({
+    create: { width: dW, height: dH, channels: 3, background: { r: 255, g: 255, b: 255 } },
+  }).png().toBuffer()
 
-  // ── 6. Warp design + create matching white fill ────────────────────────────
-  const [warpedPng, whiteFill] = await Promise.all([
-    perspectiveWarp(design, corners, bgW, bgH),
-    createWhiteFill(corners, bgW, bgH),
-  ])
-  // Soften warped alpha edge so card doesn't look copy-pasted
-  const softWarp = await sharp(warpedPng).blur(0.6).toBuffer()
-
-  // ── 7. Shadow bounding box (computed from warp corners) ───────────────────
-  const xs = [corners.topLeft.x, corners.topRight.x, corners.bottomRight.x, corners.bottomLeft.x]
-  const ys = [corners.topLeft.y, corners.topRight.y, corners.bottomRight.y, corners.bottomLeft.y]
-  const sLeft = Math.max(0, Math.min(...xs) - 32)
-  const sTop  = Math.max(0, Math.min(...ys) - 20)
-  const sW    = Math.min(bgW - sLeft, Math.max(...xs) - Math.min(...xs) + 64)
-  const sH    = Math.min(bgH - sTop,  Math.max(...ys) - Math.min(...ys) + 52)
-
-  const shadowBuf = await sharp({
-    create: { width: sW, height: sH, channels: 4,
-              background: { r: 10, g: 6, b: 2, alpha: 0.28 } },
-  }).blur(20).png().toBuffer()
-
-  // ── 8. Final composite ─────────────────────────────────────────────────────
-  // Composite order: shadow → white paper → warped design
-  // white (over) makes area opaque; multiply(255, design) = design (solid, not transparent)
+  // white (over) → design (multiply): multiply(255, any) = any, so design renders at full fidelity
   return sharp(backgroundBuffer)
     .composite([
-      { input: shadowBuf, blend: 'over', left: sLeft + 7, top: sTop + 12 },
-      { input: whiteFill, blend: 'over' },
-      { input: softWarp,  blend: 'multiply' },
+      { input: whitePaper, blend: 'over',     left, top },
+      { input: design,     blend: 'multiply', left, top },
     ])
     .png()
     .toBuffer()
