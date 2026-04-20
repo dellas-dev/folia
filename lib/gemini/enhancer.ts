@@ -697,9 +697,72 @@ Use this optional extra direction only if it keeps the scene restrained and uncl
     return raw.trim()
   } catch (error: any) {
     const msg = error?.message ?? ''
-    if (msg.includes('429') || msg.includes('rate_limit')) throw new Error('GROQ_RATE_LIMIT')
-    throw new Error('GROQ_FAILED')
+    console.error('[Groq] analyzeDesignForBackground error:', msg || error)
+
+    // Fall back to a deterministic premium flatlay prompt instead of failing the whole request.
+    return buildFallbackBackgroundPrompt(options)
   }
+}
+
+function buildFallbackBackgroundPrompt(options?: {
+  sceneLabel?: string
+  scenePrompt?: string
+  customPrompt?: string
+}) {
+  const rawDirection = [options?.scenePrompt, options?.customPrompt]
+    .filter(Boolean)
+    .join(', ')
+    .replace(/place this invitation card/gi, '')
+    .replace(/display this design/gi, '')
+    .replace(/display this card/gi, '')
+    .replace(/this card/gi, '')
+    .replace(/invitation card/gi, '')
+    .replace(/mounted on/gi, '')
+    .replace(/centered inside/gi, '')
+    .replace(/\s+/g, ' ')
+    .replace(/\s+,/g, ',')
+    .trim()
+
+  if (rawDirection) {
+    return [
+      'Professional top-down flatlay photography',
+      simplifySceneDirection(rawDirection),
+      'generous bright negative space in center',
+      'restrained organic shadows',
+      'refined premium stationery listing photo',
+    ].join(', ')
+  }
+
+  return [
+    'Professional top-down flatlay photography',
+    'clean ivory stone or linen surface',
+    'one or two quiet botanical or ribbon accents at the outer edges only',
+    'soft natural daylight from above',
+    'generous bright negative space in center',
+    'restrained organic shadows',
+    'refined premium stationery listing photo',
+  ].join(', ')
+}
+
+function simplifySceneDirection(input: string) {
+  return input
+    .replace(/realistic etsy listing mockup/gi, '')
+    .replace(/realistic product photography/gi, '')
+    .replace(/sharp focus/gi, '')
+    .replace(/highly detailed/gi, '')
+    .replace(/outdoor garden wedding ceremony backdrop/gi, 'clean elegant backdrop')
+    .replace(/lush white floral arrangements/gi, 'minimal white floral accents')
+    .replace(/fresh peonies, roses, and linen fabric background/gi, 'soft linen surface with minimal blush floral accents at the edges')
+    .replace(/fresh eucalyptus sprigs and small white flowers arranged around it/gi, 'subtle eucalyptus accents at the outer edges')
+    .replace(/surrounded by/g, 'with')
+    .replace(/soft natural light/gi, 'soft natural daylight')
+    .replace(/warm candlelight ambiance/gi, 'warm restrained candlelit glow')
+    .replace(/bright cheerful lighting/gi, 'soft refined lighting')
+    .replace(/\s+/g, ' ')
+    .replace(/\s+,/g, ',')
+    .replace(/,+/g, ',')
+    .replace(/^,\s*|\s*,\s*$/g, '')
+    .trim()
 }
 
 export async function analyzeInvitationForMockup(
