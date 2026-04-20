@@ -208,17 +208,18 @@ export async function detectColorTemperature(bgBuffer: Buffer): Promise<'warm' |
   return 'neutral'
 }
 
-// Centers the design on a generated background with realistic blending:
-// 1. Color temperature tint to match background (warm/cool/neutral)
-// 2. Paper grain overlay (soft-light, ~9% opacity) for texture
-// 3. 0.4px edge blur to soften hard digital edges
-// 4. Two-layer drop shadow (outer wide + inner tight)
-// 5. Multiply blend so white card areas show surface texture through
+// Centers the design on a generated background using white-paper + multiply technique:
 //
-// BUG NOTE: sharp.create background.alpha is parsed by the `color` npm module
-// which expects floats 0.0–1.0, NOT integers 0–255. Integer alpha values >1
-// clamp to 1.0 (fully opaque), producing solid black shadow fills that turn the
-// entire composited area black via multiply. All shadow alpha values are floats.
+// Pipeline:
+// 1. Resize + flatten design to white background (RGBA)
+// 2. Color temperature tint (via .tint())
+// 3. Paper grain (soft-light, ~9% opacity, RGBA→RGBA safe)
+// 4. 0.4px edge blur
+// 5. Compute placement corners with 3% top-perspective convergence
+// 6. perspectiveWarp() → design warped on bg-sized transparent canvas
+// 7. createWhiteFill() → white quad on same canvas (establishes opaque paper base)
+// 8. Composite: shadow (over) → white fill (over) → warped design (multiply)
+//    white fill ensures multiply(255, design) = design — card never transparent
 export async function compositeDesignCentered(
   designBuffer: Buffer,
   backgroundBuffer: Buffer,
@@ -231,7 +232,7 @@ export async function compositeDesignCentered(
   const maxW = Math.round(bgW * 0.56)
   const maxH = Math.round(bgH * 0.68)
 
-  // Step 1 — Flatten (white bg), resize, ensure RGBA for consistent channel count
+  // ── 1. Flatten to white, resize, ensure RGBA (consistent channels for grain) ──
   let design = await sharp(designBuffer)
     .resize(maxW, maxH, { fit: 'inside', withoutEnlargement: false })
     .flatten({ background: { r: 255, g: 255, b: 255 } })
@@ -239,83 +240,82 @@ export async function compositeDesignCentered(
     .png()
     .toBuffer()
 
-  const dMeta = await sharp(design).metadata()
-  const dW = dMeta.width!
-  const dH = dMeta.height!
+  const { width: dW, height: dH } = await sharp(design).metadata() as { width: number; height: number }
 
-  // Step 2 — Color temperature tint: warm/cool shifts channels via .tint()
-  // .tint() multiplies each channel by tint/255, so values near 255 are subtle.
-  const TINT_MAP: Record<'warm' | 'cool' | 'neutral', { r: number; g: number; b: number } | null> = {
-    warm:    { r: 255, g: 245, b: 224 },  // slight amber warmth
-    cool:    { r: 224, g: 238, b: 255 },  // slight cool blue
+  // ── 2. Color temperature tint ─────────────────────────────────────────────
+  const TINT_MAP: Record<string, { r: number; g: number; b: number } | null> = {
+    warm:    { r: 255, g: 245, b: 224 },
+    cool:    { r: 224, g: 238, b: 255 },
     neutral: null,
   }
-  const tintColor = TINT_MAP[colorTemp]
-  if (tintColor) {
-    design = await sharp(design).tint(tintColor).ensureAlpha().png().toBuffer()
+  const tint = TINT_MAP[colorTemp]
+  if (tint) {
+    design = await sharp(design).tint(tint).ensureAlpha().png().toBuffer()
   }
 
-  // Step 3 — Paper grain: RGBA noise buffer composited with soft-light.
-  // Design must be RGBA first (done in Step 1) to avoid channel mismatch.
+  // ── 3. Paper grain (RGBA noise, soft-light) ───────────────────────────────
   const grainData = Buffer.alloc(dW * dH * 4)
   for (let i = 0; i < dW * dH; i++) {
     const v = 128 + Math.round((Math.random() - 0.5) * 52)
     grainData[i * 4]     = v
     grainData[i * 4 + 1] = v
     grainData[i * 4 + 2] = v
-    grainData[i * 4 + 3] = 22  // 22/255 ≈ 8.6% opacity
+    grainData[i * 4 + 3] = 22  // ~9% opacity
   }
   const grainBuf = await sharp(grainData, {
     raw: { width: dW, height: dH, channels: 4 },
   }).png().toBuffer()
-
   design = await sharp(design)
     .composite([{ input: grainBuf, blend: 'soft-light' }])
     .png()
     .toBuffer()
 
-  // Step 4 — Edge blur: softens the hard pixel boundary ~1px
+  // ── 4. Edge blur ──────────────────────────────────────────────────────────
   design = await sharp(design).blur(0.4).png().toBuffer()
 
-  // Step 5 — Position: centered, slightly above vertical midpoint
+  // ── 5. Placement corners: centered + 3% top-perspective convergence ───────
+  // Slight trapezoid makes the card look naturally placed rather than perfectly
+  // aligned, simulating a real top-down photo with very slight viewing angle.
   const left = Math.round((bgW - dW) / 2)
   const top  = Math.round((bgH - dH) / 2 - dH * 0.04)
+  const shrink = Math.round(dW * 0.03)  // top edge converges 3% per side
 
-  // Step 6 — Shadow layers (alpha MUST be 0.0–1.0 float for color module)
-  const outerPad = 40
-  const outerShadow = await sharp({
-    create: {
-      width: dW + outerPad * 2, height: dH + outerPad * 2, channels: 4,
-      background: { r: 8, g: 4, b: 0, alpha: 0.13 },   // ~13% opacity
-    },
-  }).blur(24).png().toBuffer()
+  const corners: CornerPoints = {
+    topLeft:     { x: left + shrink,        y: top },
+    topRight:    { x: left + dW - shrink,   y: top },
+    bottomRight: { x: left + dW + shrink,   y: top + dH },
+    bottomLeft:  { x: left - shrink,        y: top + dH },
+  }
 
-  const innerPad = 18
-  const innerShadow = await sharp({
-    create: {
-      width: dW + innerPad * 2, height: dH + innerPad * 2, channels: 4,
-      background: { r: 18, g: 10, b: 2, alpha: 0.23 },  // ~23% opacity
-    },
-  }).blur(11).png().toBuffer()
+  // ── 6. Warp design + create matching white fill ────────────────────────────
+  const [warpedPng, whiteFill] = await Promise.all([
+    perspectiveWarp(design, corners, bgW, bgH),
+    createWhiteFill(corners, bgW, bgH),
+  ])
+  // Soften warped alpha edge so card doesn't look copy-pasted
+  const softWarp = await sharp(warpedPng).blur(0.6).toBuffer()
 
-  // Step 7 — Final composite: shadows under design, design on top with multiply
+  // ── 7. Shadow bounding box (computed from warp corners) ───────────────────
+  const xs = [corners.topLeft.x, corners.topRight.x, corners.bottomRight.x, corners.bottomLeft.x]
+  const ys = [corners.topLeft.y, corners.topRight.y, corners.bottomRight.y, corners.bottomLeft.y]
+  const sLeft = Math.max(0, Math.min(...xs) - 32)
+  const sTop  = Math.max(0, Math.min(...ys) - 20)
+  const sW    = Math.min(bgW - sLeft, Math.max(...xs) - Math.min(...xs) + 64)
+  const sH    = Math.min(bgH - sTop,  Math.max(...ys) - Math.min(...ys) + 52)
+
+  const shadowBuf = await sharp({
+    create: { width: sW, height: sH, channels: 4,
+              background: { r: 10, g: 6, b: 2, alpha: 0.28 } },
+  }).blur(20).png().toBuffer()
+
+  // ── 8. Final composite ─────────────────────────────────────────────────────
+  // Composite order: shadow → white paper → warped design
+  // white (over) makes area opaque; multiply(255, design) = design (solid, not transparent)
   return sharp(backgroundBuffer)
     .composite([
-      {
-        input: outerShadow, blend: 'over',
-        left: Math.max(0, left - outerPad + 8),
-        top:  Math.max(0, top  - outerPad + 14),
-      },
-      {
-        input: innerShadow, blend: 'over',
-        left: Math.max(0, left - innerPad + 4),
-        top:  Math.max(0, top  - innerPad + 8),
-      },
-      {
-        input: design, blend: 'over',
-        left,
-        top,
-      },
+      { input: shadowBuf, blend: 'over', left: sLeft + 7, top: sTop + 12 },
+      { input: whiteFill, blend: 'over' },
+      { input: softWarp,  blend: 'multiply' },
     ])
     .png()
     .toBuffer()
