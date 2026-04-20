@@ -561,32 +561,78 @@ Write 55-65 word comma-separated prompt. No sentences. No narrative. Output ONLY
   }
 }
 
+type CornerDetectionResult = {
+  topLeft: { x: number; y: number }
+  topRight: { x: number; y: number }
+  bottomRight: { x: number; y: number }
+  bottomLeft: { x: number; y: number }
+}
+
+// Returns centered fallback corners (middle 65% of image) when vision detection fails
+function fallbackCorners(w: number, h: number): CornerDetectionResult {
+  const mx = Math.round(w * 0.18)
+  const my = Math.round(h * 0.12)
+  return {
+    topLeft:     { x: mx,     y: my     },
+    topRight:    { x: w - mx, y: my     },
+    bottomRight: { x: w - mx, y: h - my },
+    bottomLeft:  { x: mx,     y: h - my },
+  }
+}
+
+function parseCornerJSON(raw: string): CornerDetectionResult | null {
+  // Strip markdown code fences if present
+  const stripped = raw.replace(/```[a-z]*\n?/gi, '').replace(/```/g, '').trim()
+  // Find the outermost JSON object
+  const match = stripped.match(/\{[\s\S]*\}/)
+  if (!match) return null
+  try {
+    const obj = JSON.parse(match[0]) as CornerDetectionResult
+    // Validate all 4 corners are present with numeric x/y
+    for (const key of ['topLeft', 'topRight', 'bottomRight', 'bottomLeft'] as const) {
+      if (typeof obj[key]?.x !== 'number' || typeof obj[key]?.y !== 'number') return null
+    }
+    return obj
+  } catch {
+    return null
+  }
+}
+
 export async function detectMockupCorners(
   imageBase64: string,
   mimeType: string,
   imageWidth: number,
   imageHeight: number
-): Promise<{ topLeft: { x: number; y: number }; topRight: { x: number; y: number }; bottomRight: { x: number; y: number }; bottomLeft: { x: number; y: number } }> {
-  const systemPrompt = `You are a computer vision expert that identifies surface corners in product photography for mockup creation. Return ONLY valid JSON with no markdown fences, no explanation, no extra text.`
+): Promise<CornerDetectionResult> {
+  const systemPrompt = `You are a precise computer vision system. Your only output is a single JSON object — no explanation, no markdown, no extra text.`
 
-  const userMessage = `The image dimensions are ${imageWidth}×${imageHeight} pixels.
+  const userMessage = `Image size: ${imageWidth}x${imageHeight} pixels.
 
-Find the 4 corners of the main design display surface in this photo. The surface is the rectangular board, paper, easel card, sign, framed artwork, or flat-lay invitation that shows a design/artwork.
+Task: Find the 4 pixel-coordinate corners of the rectangular design surface (board, sign, paper, easel card, or framed area) in this photo.
 
-Return ONLY this exact JSON structure with integer pixel coordinates:
-{"topLeft":{"x":0,"y":0},"topRight":{"x":0,"y":0},"bottomRight":{"x":0,"y":0},"bottomLeft":{"x":0,"y":0}}`
+Output ONLY this JSON (integer values):
+{"topLeft":{"x":NUMBER,"y":NUMBER},"topRight":{"x":NUMBER,"y":NUMBER},"bottomRight":{"x":NUMBER,"y":NUMBER},"bottomLeft":{"x":NUMBER,"y":NUMBER}}`
 
   try {
     const raw = await callGroqVision(imageBase64, mimeType, userMessage, systemPrompt)
-    const match = raw.match(/\{[\s\S]*\}/)
-    if (!match) throw new Error('No JSON in corner detection response')
-    const parsed = JSON.parse(match[0]) as { topLeft: { x: number; y: number }; topRight: { x: number; y: number }; bottomRight: { x: number; y: number }; bottomLeft: { x: number; y: number } }
-    return parsed
+    console.log('[Groq] detectMockupCorners raw response:', raw.slice(0, 300))
+
+    const parsed = parseCornerJSON(raw)
+    if (parsed) {
+      console.log('[Groq] detectMockupCorners parsed:', parsed)
+      return parsed
+    }
+
+    // Groq returned something but it wasn't parseable — use fallback
+    console.warn('[Groq] detectMockupCorners: unparseable response, using fallback corners')
+    return fallbackCorners(imageWidth, imageHeight)
   } catch (error: any) {
     const msg = error?.message ?? ''
     console.error('[Groq] detectMockupCorners error:', msg)
     if (msg.includes('429') || msg.includes('rate_limit')) throw new Error('GROQ_RATE_LIMIT')
-    throw new Error('CORNER_DETECTION_FAILED')
+    // API error — use fallback rather than failing the whole request
+    console.warn('[Groq] detectMockupCorners: API error, using fallback corners')
+    return fallbackCorners(imageWidth, imageHeight)
   }
 }
 
