@@ -1,0 +1,27 @@
+<svg width="1500" height="1000" viewBox="0 0 1500 1000" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="166" y1="88" x2="1326" y2="918" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F8F4EF"/>
+      <stop offset="1" stop-color="#E9E0D5"/>
+    </linearGradient>
+    <filter id="boardShadow" x="360" y="150" width="820" height="700" filterUnits="userSpaceOnUse">
+      <feGaussianBlur stdDeviation="26"/>
+    </filter>
+  </defs>
+  <rect width="1500" height="1000" fill="url(#bg)"/>
+  <rect x="146" y="132" width="1208" height="736" rx="34" fill="#FFFFFF" fill-opacity="0.3"/>
+  <ellipse cx="758" cy="518" rx="382" ry="260" fill="#D9CEC0" opacity="0.32"/>
+  <g filter="url(#boardShadow)" opacity="0.2">
+    <path d="M472 225L1082 241L1064 739L454 723L472 225Z" fill="#9F907F"/>
+  </g>
+  <path d="M450 210L1070 225L1050 725L430 710L450 210Z" fill="#D6CEC4"/>
+  <path d="M486 246L1032 259L1016 687L470 674L486 246Z" fill="#FFFFFF"/>
+  <rect x="661" y="165" width="184" height="56" rx="18" fill="#B79F79"/>
+  <rect x="688" y="177" width="130" height="28" rx="10" fill="#F2ECE3"/>
+  <g opacity="0.62">
+    <rect x="233" y="275" width="120" height="88" rx="24" fill="#EEE2D6"/>
+    <rect x="1149" y="664" width="98" height="72" rx="22" fill="#D9CCBE"/>
+    <rect x="1180" y="266" width="84" height="58" rx="18" fill="#E8DDD0"/>
+  </g>
+  <path d="M1121 441C1171 434 1213 444 1260 479" stroke="#B8A48C" stroke-width="10" stroke-linecap="round" opacity="0.8"/>
+</svg>

@@ -1,0 +1,31 @@
+<svg width="1500" height="1000" viewBox="0 0 1500 1000" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="110" y1="100" x2="1390" y2="920" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFF8F7"/>
+      <stop offset="1" stop-color="#F2E4E4"/>
+    </linearGradient>
+    <filter id="cardShadow" x="390" y="180" width="720" height="620" filterUnits="userSpaceOnUse">
+      <feGaussianBlur stdDeviation="24"/>
+    </filter>
+  </defs>
+  <rect width="1500" height="1000" fill="url(#bg)"/>
+  <path d="M160 708C334 622 470 600 684 647C840 681 932 706 1083 671C1200 644 1270 598 1344 536" stroke="#E7C8CF" stroke-width="44" stroke-linecap="round" opacity="0.7"/>
+  <path d="M192 727C364 665 530 662 704 706C862 746 1002 760 1184 704" stroke="#F5D8DD" stroke-width="24" stroke-linecap="round" opacity="0.9"/>
+  <g opacity="0.5">
+    <circle cx="248" cy="206" r="28" fill="#E7B2BE"/>
+    <circle cx="292" cy="232" r="20" fill="#F4D2D7"/>
+    <circle cx="220" cy="246" r="18" fill="#F8E6E8"/>
+    <circle cx="1196" cy="172" r="23" fill="#ECB7C0"/>
+    <circle cx="1234" cy="205" r="18" fill="#F7DEE2"/>
+    <circle cx="1160" cy="208" r="14" fill="#F9E8EA"/>
+  </g>
+  <g filter="url(#cardShadow)" opacity="0.25">
+    <rect x="454" y="246" width="592" height="468" rx="14" fill="#A78F90"/>
+  </g>
+  <rect x="440" y="230" width="620" height="500" rx="12" fill="#FAF2F3"/>
+  <rect x="468" y="258" width="564" height="444" rx="4" fill="#FFFFFF"/>
+  <path d="M1060 263C1111 285 1152 287 1197 271" stroke="#DDC2B0" stroke-width="8" stroke-linecap="round"/>
+  <path d="M1070 686C1117 700 1165 690 1212 655" stroke="#DEC0C4" stroke-width="8" stroke-linecap="round"/>
+  <ellipse cx="1277" cy="680" rx="28" ry="12" transform="rotate(-32 1277 680)" fill="#D7C3AE" opacity="0.8"/>
+  <ellipse cx="1240" cy="708" rx="28" ry="12" transform="rotate(18 1240 708)" fill="#E6D4C0" opacity="0.8"/>
+</svg>
