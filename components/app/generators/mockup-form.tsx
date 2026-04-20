@@ -54,7 +54,6 @@ export function MockupForm({ tier, startingCredits, initialInvitationKey, initia
   const { toast } = useToast()
 
   const canUseMockups = (tier === 'pro' || tier === 'business') && credits > 0
-  const visibleSceneOptions = MOCKUP_SCENE_OPTIONS.slice(0, 3)
   const isAutoMode = scenePreset === null
 
   /* ── Upgrade wall ─────────────────────────────────────────── */
@@ -247,7 +246,7 @@ export function MockupForm({ tier, startingCredits, initialInvitationKey, initia
               </p>
               <div className="overflow-x-auto">
                 <div className="flex gap-2.5 pb-1">
-                  {visibleSceneOptions.map((scene) => {
+                  {MOCKUP_SCENE_OPTIONS.map((scene) => {
                     const active = scene.id === scenePreset
                     return (
                       <button
