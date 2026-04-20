@@ -7,6 +7,7 @@ import {
   invertMatrix3x3,
   isInsideQuad,
 } from './homography'
+import type { MockupScenePreset } from '@/types'
 
 const MAX_DESIGN_PX = 1200
 const MAX_REF_PX = 1500
@@ -214,44 +215,48 @@ export async function detectColorTemperature(bgBuffer: Buffer): Promise<'warm' |
 export async function compositeDesignCentered(
   designBuffer: Buffer,
   backgroundBuffer: Buffer,
-  _colorTemp: 'warm' | 'cool' | 'neutral' = 'neutral'
+  colorTemp: 'warm' | 'cool' | 'neutral' = 'neutral',
+  scenePreset?: MockupScenePreset
 ): Promise<Buffer> {
   const bgMeta = await sharp(backgroundBuffer).metadata()
   const bgW = bgMeta.width!
   const bgH = bgMeta.height!
 
-  const maxW = Math.round(bgW * 0.55)
-  const maxH = Math.round(bgH * 0.70)
+  const placement = getMockupPlacement(scenePreset)
+  const maxW = Math.round(bgW * placement.maxWRatio)
+  const maxH = Math.round(bgH * placement.maxHRatio)
 
-  // Flatten to solid white, resize, then apply 0.4px edge blur to soften digital boundary
+  // Flatten to an off-white paper tone, resize, then slightly soften the edge
+  // so the card integrates without a harsh digital cutout.
+  const paperColor = getPaperColor(colorTemp)
   const design = await sharp(designBuffer)
     .resize(maxW, maxH, { fit: 'inside', withoutEnlargement: false })
-    .flatten({ background: { r: 255, g: 255, b: 255 } })
-    .blur(0.4)
+    .flatten({ background: paperColor })
+    .blur(0.22)
     .png()
     .toBuffer()
 
   const { width: dW, height: dH } = await sharp(design).metadata() as { width: number; height: number }
 
-  const left = Math.round((bgW - dW) / 2)
-  const top  = Math.round((bgH - dH) / 2)
+  const left = Math.round((bgW - dW) / 2 + bgW * placement.offsetXRatio)
+  const top  = Math.round((bgH - dH) / 2 + bgH * placement.offsetYRatio)
 
-  // White paper base — same size as design, RGB solid
+  // Paper base sits under the artwork so any transparent edges read as a physical sheet.
   const whitePaper = await sharp({
-    create: { width: dW, height: dH, channels: 3, background: { r: 255, g: 255, b: 255 } },
+    create: { width: dW, height: dH, channels: 3, background: paperColor },
   }).png().toBuffer()
 
-  // Shadow: slightly larger rectangle, blurred, alpha 0.0–1.0 (color module expects floats)
-  const shadowPad = 22
+  // Keep the contact shadow light and diffuse so it does not read as a grey block.
+  const shadowPad = placement.shadowPad
   const shadow = await sharp({
     create: {
       width: dW + shadowPad * 2,
       height: dH + shadowPad * 2,
       channels: 4,
-      background: { r: 12, g: 8, b: 4, alpha: 0.22 },
+      background: { r: 28, g: 22, b: 18, alpha: placement.shadowAlpha },
     },
   })
-    .blur(16)
+    .blur(placement.shadowBlur)
     .png()
     .toBuffer()
 
@@ -261,8 +266,8 @@ export async function compositeDesignCentered(
       {
         input: shadow,
         blend: 'over',
-        left: Math.max(0, left - shadowPad + 6),
-        top:  Math.max(0, top  - shadowPad + 10),
+        left: Math.max(0, left - shadowPad + placement.shadowOffsetX),
+        top:  Math.max(0, top  - shadowPad + placement.shadowOffsetY),
       },
       // White paper establishes opaque base
       { input: whitePaper, blend: 'over',     left, top },
@@ -271,6 +276,74 @@ export async function compositeDesignCentered(
     ])
     .png()
     .toBuffer()
+}
+
+function getPaperColor(colorTemp: 'warm' | 'cool' | 'neutral') {
+  switch (colorTemp) {
+    case 'warm':
+      return { r: 252, g: 248, b: 242 }
+    case 'cool':
+      return { r: 248, g: 250, b: 252 }
+    default:
+      return { r: 250, g: 249, b: 246 }
+  }
+}
+
+function getMockupPlacement(scenePreset?: MockupScenePreset) {
+  switch (scenePreset) {
+    case 'floral-flatlay':
+      return {
+        maxWRatio: 0.46,
+        maxHRatio: 0.62,
+        offsetXRatio: 0.03,
+        offsetYRatio: -0.015,
+        shadowPad: 12,
+        shadowBlur: 22,
+        shadowAlpha: 0.085,
+        shadowOffsetX: 2,
+        shadowOffsetY: 4,
+      }
+    case 'marble-eucalyptus':
+    case 'invitation-suite':
+    case 'modern-desk':
+      return {
+        maxWRatio: 0.48,
+        maxHRatio: 0.64,
+        offsetXRatio: 0.015,
+        offsetYRatio: -0.01,
+        shadowPad: 12,
+        shadowBlur: 20,
+        shadowAlpha: 0.08,
+        shadowOffsetX: 2,
+        shadowOffsetY: 4,
+      }
+    case 'golden-plate':
+    case 'save-the-date-satin':
+    case 'blush-silk':
+      return {
+        maxWRatio: 0.44,
+        maxHRatio: 0.6,
+        offsetXRatio: 0.02,
+        offsetYRatio: -0.005,
+        shadowPad: 11,
+        shadowBlur: 20,
+        shadowAlpha: 0.075,
+        shadowOffsetX: 2,
+        shadowOffsetY: 4,
+      }
+    default:
+      return {
+        maxWRatio: 0.5,
+        maxHRatio: 0.66,
+        offsetXRatio: 0,
+        offsetYRatio: -0.005,
+        shadowPad: 12,
+        shadowBlur: 20,
+        shadowAlpha: 0.08,
+        shadowOffsetX: 2,
+        shadowOffsetY: 4,
+      }
+  }
 }
 
 // Full pipeline: erase existing design on reference, then warp and place new design.

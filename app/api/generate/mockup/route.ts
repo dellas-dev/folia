@@ -16,8 +16,8 @@ type GenerateMockupBody = {
   custom_prompt?: string
 }
 
-function getSceneLabel(preset: MockupScenePreset): string | undefined {
-  return MOCKUP_SCENE_OPTIONS.find((s) => s.id === preset)?.label
+function getSceneOption(preset: MockupScenePreset) {
+  return MOCKUP_SCENE_OPTIONS.find((scene) => scene.id === preset)
 }
 
 export async function POST(request: Request) {
@@ -76,11 +76,15 @@ export async function POST(request: Request) {
     const invitationMimeType = invitationRes.headers.get('content-type') || 'image/png'
 
     // ── Phase 2: Groq Vision analyzes design → background prompt ─────────
-    const sceneHint = body.scene_preset ? getSceneLabel(body.scene_preset) : body.custom_prompt
+    const sceneOption = body.scene_preset ? getSceneOption(body.scene_preset) : undefined
     const backgroundPrompt = await analyzeDesignForBackground(
       invitationBase64,
       invitationMimeType,
-      sceneHint
+      {
+        sceneLabel: sceneOption?.label,
+        scenePrompt: sceneOption?.prompt,
+        customPrompt: body.custom_prompt,
+      }
     )
 
     console.log('[mockup] Phase 2 background prompt:', backgroundPrompt)
@@ -96,7 +100,12 @@ export async function POST(request: Request) {
     console.log('[mockup] Color temperature detected:', colorTemp)
 
     // ── Phase 5: Composite design onto background ─────────────────────────
-    const composited = await compositeDesignCentered(invitationBuffer, bgBuffer, colorTemp)
+    const composited = await compositeDesignCentered(
+      invitationBuffer,
+      bgBuffer,
+      colorTemp,
+      body.scene_preset
+    )
 
     // ── Phase 5: Upload result ────────────────────────────────────────────
     const generationId = crypto.randomUUID()

@@ -653,7 +653,11 @@ Output ONLY the JSON, nothing else.`
 export async function analyzeDesignForBackground(
   designBase64: string,
   mimeType: string,
-  sceneHint?: string  // optional scene label from preset (e.g. "Marble & Eucalyptus")
+  options?: {
+    sceneLabel?: string
+    scenePrompt?: string
+    customPrompt?: string
+  }
 ): Promise<string> {
   const BACKGROUND_SYSTEM_PROMPT = `You are a product photography prompt specialist for Etsy stationery mockups.
 
@@ -661,20 +665,31 @@ Your job: analyze the uploaded invitation/stationery design and return ONE backg
 
 RULES:
 - Describe ONLY the background/surface — NO card or invitation visible
+- Treat any provided scene direction as a HARD composition constraint, but simplify it into a cleaner premium listing photo
+- Decorative props must be MINIMAL and SUBORDINATE to the invitation: maximum 2 prop types total
 - Place decorative props (real flowers, botanicals, ribbon, etc.) around the EDGES only
 - The CENTER must be LEFT COMPLETELY EMPTY and BRIGHT — this is where the card will be placed
-- Match props and surface to the design's color palette and botanical elements
+- Negative space must dominate the composition
+- Avoid large flowers, bouquets, hero props, or anything that competes with the invitation
+- If the invitation is already floral or busy, reduce the scene styling and use quieter supporting props and cleaner surfaces
+- Match props and surface to the design's color palette and aesthetic, but do not mirror the invitation's full decorative density
 - Top-down flat lay perspective
 - Realistic product photography style
 
-OUTPUT FORMAT (40-55 words, comma-separated):
-Professional top-down flatlay photography, [surface matching design aesthetic], [2-3 specific real props matching design elements and colors, placed at edges], soft natural daylight from above, bright clean empty white center area, soft organic shadows, realistic Etsy product listing photo quality
+OUTPUT FORMAT (35-50 words, comma-separated):
+Professional top-down flatlay photography, [premium surface], [1-2 quiet supporting props at outer edges only], soft natural daylight from above, generous bright negative space in center, restrained organic shadows, refined premium stationery listing photo
 
-Do NOT mention any card, invitation, or paper. Only describe the background scene.`
+Do NOT mention any card, invitation, bouquet centerpiece, frame, or paper. Only describe the background scene.`
 
-  const userMsg = sceneHint
-    ? `Analyze this design. Create a background prompt inspired by this scene style: "${sceneHint}". Match the props to both the scene style AND the design's color palette.`
-    : `Analyze this design's botanical elements, dominant colors, and aesthetic. Create the most complementary background flatlay prompt.`
+  const userMsg = options?.scenePrompt
+    ? `Analyze this design. Use this scene direction as a hard constraint for surface, mood, and prop vocabulary: "${options.scenePrompt}".
+Scene label: "${options.sceneLabel ?? 'preset scene'}".
+Simplify it into a more premium, restrained listing composition with stronger negative space and less decorative clutter.
+${options.customPrompt ? `Optional extra detail from user: "${options.customPrompt}". Apply it only if it does not increase clutter.` : ''}`
+    : options?.customPrompt
+      ? `Analyze this design's botanical elements, dominant colors, and aesthetic. Create the most complementary premium background flatlay prompt.
+Use this optional extra direction only if it keeps the scene restrained and uncluttered: "${options.customPrompt}".`
+      : `Analyze this design's botanical elements, dominant colors, and aesthetic. Create the most complementary premium background flatlay prompt with restrained styling and strong negative space.`
 
   try {
     const raw = await callGroqVision(designBase64, mimeType || 'image/png', userMsg, BACKGROUND_SYSTEM_PROMPT)
