@@ -401,7 +401,7 @@ export async function compositeDesignCentered(
   // alpha fade (215→0 over EDGE_OVERLAP px inward). Scene flowers/petals that the
   // AI placed in the center of the background image will now bleed over card borders,
   // creating natural physical depth without a separate foreground cutout.
-  const EDGE_OVERLAP = 35
+  const EDGE_OVERLAP = 60
   const bgRawResult = await sharp(backgroundBuffer)
     .ensureAlpha()
     .raw()
@@ -423,7 +423,7 @@ export async function compositeDesignCentered(
       const dist  = Math.min(distX, distY)
       if (dist >= EDGE_OVERLAP) continue
       const t     = dist / EDGE_OVERLAP
-      const alpha = Math.round(215 * (1 - t))
+      const alpha = Math.round(230 * Math.pow(1 - t, 0.6))
       const i     = (y * bgRawW + x) * 4
       borderData[i]     = bgRawData[i]
       borderData[i + 1] = bgRawData[i + 1]
@@ -498,10 +498,10 @@ function getMockupPlacement(scenePreset?: MockupScenePreset) {
     case 'floral-flatlay':
     case 'organic-eucalyptus':
       return {
-        maxWRatio: 0.46,
-        maxHRatio: 0.62,
-        offsetXRatio: 0.03,
-        offsetYRatio: -0.015,
+        maxWRatio: 0.36,
+        maxHRatio: 0.50,
+        offsetXRatio: -0.02,
+        offsetYRatio: 0.01,
         shadowPad: 12,
         shadowBlur: 8,
         shadowAlpha: 0.28,
