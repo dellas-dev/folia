@@ -480,6 +480,113 @@ export async function compositeDesignCentered(
     .toBuffer()
 }
 
+// Generates a scene background with a clean white paper placeholder at the
+// card position — no design, no shadow, no grain. User pastes their design
+// in Photoshop afterward. Border reveal still runs so scene elements naturally
+// overlap the paper edges just like in the full mockup flow.
+export async function compositeTemplateOnly(
+  designBuffer: Buffer,
+  backgroundBuffer: Buffer,
+  scenePreset?: MockupScenePreset,
+): Promise<Buffer> {
+  const bgMeta = await sharp(backgroundBuffer).metadata()
+  const bgW = bgMeta.width!
+  const bgH = bgMeta.height!
+
+  const placement = getMockupPlacement(scenePreset)
+  const maxW = Math.round(bgW * placement.maxWRatio)
+  const maxH = Math.round(bgH * placement.maxHRatio)
+
+  const sizedDesign = await sharp(designBuffer)
+    .resize(maxW, maxH, { fit: 'inside', withoutEnlargement: false })
+    .png()
+    .toBuffer()
+  const { width: dW, height: dH } = await sharp(sizedDesign).metadata() as
+    { width: number; height: number }
+
+  const left = Math.round((bgW - dW) / 2 + bgW * placement.offsetXRatio)
+  const top  = Math.round((bgH - dH) / 2 + bgH * placement.offsetYRatio)
+
+  const whitePaper = await sharp({
+    create: { width: dW, height: dH, channels: 3, background: { r: 255, g: 255, b: 255 } },
+  }).png().toBuffer()
+
+  const CARD_FEATHER = 14
+  const featherMask = await sharp(Buffer.from(
+    `<svg width="${dW}" height="${dH}" xmlns="http://www.w3.org/2000/svg">` +
+    `<rect x="${CARD_FEATHER}" y="${CARD_FEATHER}" ` +
+    `width="${dW - CARD_FEATHER * 2}" height="${dH - CARD_FEATHER * 2}" fill="white"/>` +
+    `</svg>`
+  ))
+    .blur(normalizeInternalBlurSigma(CARD_FEATHER))
+    .png()
+    .toBuffer()
+
+  const softWhitePaper = await sharp(whitePaper)
+    .composite([{ input: featherMask, blend: 'dest-in' }])
+    .png()
+    .toBuffer()
+
+  const CORNER_OVERLAP = 130
+  const EDGE_OVERLAP   = 55
+
+  const bgRawResult = await sharp(backgroundBuffer)
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true })
+  const bgRawData = bgRawResult.data
+  const bgRawW    = bgRawResult.info.width
+  const bgRawH    = bgRawResult.info.height
+
+  const borderData = Buffer.alloc(bgRawW * bgRawH * 4, 0)
+  const bLeft   = Math.max(0, left)
+  const bTop    = Math.max(0, top)
+  const bRight  = Math.min(bgRawW, left + dW)
+  const bBottom = Math.min(bgRawH, top + dH)
+
+  for (let y = bTop; y < bBottom; y++) {
+    for (let x = bLeft; x < bRight; x++) {
+      const dL = x - left
+      const dR = left + dW - 1 - x
+      const dT = y - top
+      const dB = top + dH - 1 - y
+
+      const minCornerDist = Math.min(
+        Math.sqrt(dL * dL + dT * dT),
+        Math.sqrt(dR * dR + dT * dT),
+        Math.sqrt(dL * dL + dB * dB),
+        Math.sqrt(dR * dR + dB * dB),
+      )
+      const edgeDist = Math.min(dL, dR, dT, dB)
+
+      const cornerAlpha = minCornerDist < CORNER_OVERLAP
+        ? 245 * Math.pow(1 - minCornerDist / CORNER_OVERLAP, 0.65) : 0
+      const edgeAlpha = edgeDist < EDGE_OVERLAP
+        ? 190 * Math.pow(1 - edgeDist / EDGE_OVERLAP, 1.1) : 0
+
+      const alpha = Math.min(255, Math.round(Math.max(cornerAlpha, edgeAlpha)))
+      if (alpha === 0) continue
+
+      const i = (y * bgRawW + x) * 4
+      borderData[i]     = bgRawData[i]
+      borderData[i + 1] = bgRawData[i + 1]
+      borderData[i + 2] = bgRawData[i + 2]
+      borderData[i + 3] = alpha
+    }
+  }
+
+  const borderBuffer = await sharp(borderData, {
+    raw: { width: bgRawW, height: bgRawH, channels: 4 },
+  }).png().toBuffer()
+
+  return sharp(backgroundBuffer)
+    .composite([
+      { input: softWhitePaper, blend: 'over', left, top },
+      { input: borderBuffer,   blend: 'over', left: 0, top: 0 },
+    ])
+    .png()
+    .toBuffer()
+}
 
 function getCardTint(colorTemp: 'warm' | 'cool' | 'neutral') {
   switch (colorTemp) {

@@ -41,6 +41,7 @@ type MockupResponse = {
 }
 
 export function MockupForm({ tier, startingCredits, initialInvitationKey, initialPreviewUrl }: MockupFormProps) {
+  const [mode, setMode] = useState<'mockup' | 'template'>('mockup')
   const [invitationKey, setInvitationKey] = useState<string | null>(initialInvitationKey ?? null)
   const [invitationName, setInvitationName] = useState<string | null>(initialInvitationKey ? 'From Elements' : null)
   const [invitationPreviewUrl, setInvitationPreviewUrl] = useState<string | null>(initialPreviewUrl ?? null)
@@ -200,6 +201,24 @@ export function MockupForm({ tier, startingCredits, initialInvitationKey, initia
     setSubmitting(true)
     setError(null)
     try {
+      if (mode === 'template') {
+        const response = await fetch('/api/generate/template', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            invitation_r2_key: invitationKey,
+            scene_preset: scenePreset ?? undefined,
+            custom_prompt: customDetails.trim() || undefined,
+          }),
+        })
+        const data = await response.json() as MockupResponse & { error?: string }
+        if (!response.ok) throw new Error(data.error || 'Scene Template generation failed.')
+        setResultUrl(data.result.signed_url)
+        setResultR2Key(data.result.r2_key)
+        setCredits(data.credits_remaining)
+        return
+      }
+
       const sigma = validateSigmaInput()
       if (sigma === null) return
 
@@ -219,7 +238,7 @@ export function MockupForm({ tier, startingCredits, initialInvitationKey, initia
       setResultR2Key(data.result.r2_key)
       setCredits(data.credits_remaining)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Mockup generation failed.')
+      setError(err instanceof Error ? err.message : 'Generation failed.')
     } finally {
       setSubmitting(false)
     }
@@ -253,6 +272,32 @@ export function MockupForm({ tier, startingCredits, initialInvitationKey, initia
         >
           Create Mockups
         </h1>
+      </div>
+
+      {/* ── Mode toggle ───────────────────────────────────── */}
+      <div className="mb-5 flex gap-2">
+        <button
+          type="button"
+          onClick={() => { setMode('mockup'); setResultUrl(null) }}
+          className="rounded-full px-5 py-2 text-sm font-semibold transition-all"
+          style={{
+            backgroundColor: mode === 'mockup' ? '#37656b' : '#f4f3f3',
+            color: mode === 'mockup' ? '#ffffff' : '#70787a',
+          }}
+        >
+          Mockup
+        </button>
+        <button
+          type="button"
+          onClick={() => { setMode('template'); setResultUrl(null) }}
+          className="rounded-full px-5 py-2 text-sm font-semibold transition-all"
+          style={{
+            backgroundColor: mode === 'template' ? '#37656b' : '#f4f3f3',
+            color: mode === 'template' ? '#ffffff' : '#70787a',
+          }}
+        >
+          Scene Template
+        </button>
       </div>
 
       <div className="grid gap-5 xl:grid-cols-[380px_1fr] xl:items-start">
@@ -497,11 +542,19 @@ export function MockupForm({ tier, startingCredits, initialInvitationKey, initia
                 style={{ background: 'linear-gradient(135deg, #37656b, #507e84)', boxShadow: '0 4px 16px rgba(55,101,107,0.3)' }}
               >
                 {submitting ? <LoaderCircle className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
-                {submitting ? 'Folia is generating your mockup...' : 'Generate Mockup'}
+                {submitting
+                  ? (mode === 'template' ? 'Generating scene template...' : 'Folia is generating your mockup...')
+                  : (mode === 'template' ? 'Generate Template' : 'Generate Mockup')
+                }
               </button>
               {!submitting ? (
                 <p className="text-center text-[10px] uppercase tracking-[0.16em]" style={{ color: '#c0c8c9' }}>
                   Uses <strong style={{ color: '#70787a' }}>1</strong> credit
+                </p>
+              ) : null}
+              {mode === 'template' && !submitting ? (
+                <p className="text-center text-[11px] leading-5" style={{ color: '#70787a' }}>
+                  Hasilkan scene dengan kertas kosong. Pasang desain Anda di Photoshop.
                 </p>
               ) : null}
             </div>
@@ -527,7 +580,7 @@ export function MockupForm({ tier, startingCredits, initialInvitationKey, initia
                 />
               </div>
               <p className="text-[10px] font-bold uppercase tracking-[0.18em]" style={{ color: '#70787a' }}>
-                AI Scene Result
+                {mode === 'template' ? 'Scene Template Result' : 'AI Scene Result'}
               </p>
               <div className="mt-auto flex gap-2.5">
                 <button
