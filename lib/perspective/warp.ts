@@ -397,6 +397,44 @@ export async function compositeDesignCentered(
     raw: { width: dW, height: dH, channels: 4 },
   }).png().toBuffer()
 
+  // Border reveal: restore original background pixels near card edges with a linear
+  // alpha fade (215→0 over EDGE_OVERLAP px inward). Scene flowers/petals that the
+  // AI placed in the center of the background image will now bleed over card borders,
+  // creating natural physical depth without a separate foreground cutout.
+  const EDGE_OVERLAP = 35
+  const bgRawResult = await sharp(backgroundBuffer)
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true })
+  const bgRawData = bgRawResult.data
+  const bgRawW    = bgRawResult.info.width
+  const bgRawH    = bgRawResult.info.height
+
+  const borderData = Buffer.alloc(bgRawW * bgRawH * 4, 0)
+  const bLeft   = Math.max(0, left)
+  const bTop    = Math.max(0, top)
+  const bRight  = Math.min(bgRawW, left + dW)
+  const bBottom = Math.min(bgRawH, top + dH)
+
+  for (let y = bTop; y < bBottom; y++) {
+    for (let x = bLeft; x < bRight; x++) {
+      const distX = Math.min(x - left, left + dW - 1 - x)
+      const distY = Math.min(y - top,  top  + dH - 1 - y)
+      const dist  = Math.min(distX, distY)
+      if (dist >= EDGE_OVERLAP) continue
+      const t     = dist / EDGE_OVERLAP
+      const alpha = Math.round(215 * (1 - t))
+      const i     = (y * bgRawW + x) * 4
+      borderData[i]     = bgRawData[i]
+      borderData[i + 1] = bgRawData[i + 1]
+      borderData[i + 2] = bgRawData[i + 2]
+      borderData[i + 3] = alpha
+    }
+  }
+  const borderBuffer = await sharp(borderData, {
+    raw: { width: bgRawW, height: bgRawH, channels: 4 },
+  }).png().toBuffer()
+
   return sharp(backgroundBuffer)
     .composite([
       // Cast shadow: soft directional blur, pre-shifted rect lands at (left+offsetX, top+offsetY)
@@ -412,6 +450,8 @@ export async function compositeDesignCentered(
       { input: edgeGlow,      blend: 'screen',   left, top },
       // Grain overlay: ~7% opacity random noise scaled to background texture level
       { input: grainBuffer,   blend: 'overlay',  left, top },
+      // Border reveal: scene elements bleed over card edges for natural depth
+      { input: borderBuffer,  blend: 'over',     left: 0, top: 0 },
       // Foreground decorator (optional): transparent-PNG cutout (leaf, ribbon, etc.)
       // overlaps top-left card corner — creates physical depth "sandwich" effect.
       ...(foregroundBuffer ? [{ input: foregroundBuffer, blend: 'over' as const, left: Math.max(0, left - 20), top: Math.max(0, top - 15) }] : []),
