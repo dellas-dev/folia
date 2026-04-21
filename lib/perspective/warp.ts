@@ -397,11 +397,11 @@ export async function compositeDesignCentered(
     raw: { width: dW, height: dH, channels: 4 },
   }).png().toBuffer()
 
-  // Border reveal: restore original background pixels near card edges with a linear
-  // alpha fade (215→0 over EDGE_OVERLAP px inward). Scene flowers/petals that the
-  // AI placed in the center of the background image will now bleed over card borders,
-  // creating natural physical depth without a separate foreground cutout.
-  const EDGE_OVERLAP = 60
+  // Corner-weighted border reveal: background elements heavily overlap card
+  // corners (like real props placed on physical cards), taper toward edges.
+  const CORNER_OVERLAP = 130  // px radial distance from each corner
+  const EDGE_OVERLAP   = 55   // px from each straight edge
+
   const bgRawResult = await sharp(backgroundBuffer)
     .ensureAlpha()
     .raw()
@@ -418,19 +418,39 @@ export async function compositeDesignCentered(
 
   for (let y = bTop; y < bBottom; y++) {
     for (let x = bLeft; x < bRight; x++) {
-      const distX = Math.min(x - left, left + dW - 1 - x)
-      const distY = Math.min(y - top,  top  + dH - 1 - y)
-      const dist  = Math.min(distX, distY)
-      if (dist >= EDGE_OVERLAP) continue
-      const t     = dist / EDGE_OVERLAP
-      const alpha = Math.round(230 * Math.pow(1 - t, 0.6))
-      const i     = (y * bgRawW + x) * 4
+      const dL = x - left
+      const dR = left + dW - 1 - x
+      const dT = y - top
+      const dB = top + dH - 1 - y
+
+      // Radial distance from nearest corner
+      const minCornerDist = Math.min(
+        Math.sqrt(dL * dL + dT * dT),  // TL
+        Math.sqrt(dR * dR + dT * dT),  // TR
+        Math.sqrt(dL * dL + dB * dB),  // BL
+        Math.sqrt(dR * dR + dB * dB),  // BR
+      )
+      // Linear distance from nearest edge
+      const edgeDist = Math.min(dL, dR, dT, dB)
+
+      const cornerAlpha = minCornerDist < CORNER_OVERLAP
+        ? 245 * Math.pow(1 - minCornerDist / CORNER_OVERLAP, 0.65)
+        : 0
+      const edgeAlpha = edgeDist < EDGE_OVERLAP
+        ? 190 * Math.pow(1 - edgeDist / EDGE_OVERLAP, 1.1)
+        : 0
+
+      const alpha = Math.min(255, Math.round(Math.max(cornerAlpha, edgeAlpha)))
+      if (alpha === 0) continue
+
+      const i = (y * bgRawW + x) * 4
       borderData[i]     = bgRawData[i]
       borderData[i + 1] = bgRawData[i + 1]
       borderData[i + 2] = bgRawData[i + 2]
       borderData[i + 3] = alpha
     }
   }
+
   const borderBuffer = await sharp(borderData, {
     raw: { width: bgRawW, height: bgRawH, channels: 4 },
   }).png().toBuffer()
