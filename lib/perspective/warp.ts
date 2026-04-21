@@ -443,38 +443,10 @@ export async function compositeDesignCentered(
       const alpha = Math.min(255, Math.round(Math.max(cornerAlpha, edgeAlpha)))
       if (alpha === 0) continue
 
-      // For corner pixels, blend in colors sampled from bg image edges
-      // This pulls flower colors from where they actually exist (bg edges)
-      // into the card corners where bg might be empty linen.
-      const isTopCorner    = dT < CORNER_OVERLAP * 0.6
-      const isBottomCorner = dB < CORNER_OVERLAP * 0.6
-      const isLeftCorner   = dL < CORNER_OVERLAP * 0.6
-      const isRightCorner  = dR < CORNER_OVERLAP * 0.6
-
-      // Map corner pixel to nearest bg edge for color sampling
-      let sampleX = x
-      let sampleY = y
-      if (isTopCorner && isLeftCorner) {
-        sampleX = Math.round(dL * 0.3)
-        sampleY = Math.round(dT * 0.3)
-      } else if (isTopCorner && isRightCorner) {
-        sampleX = bgRawW - 1 - Math.round(dR * 0.3)
-        sampleY = Math.round(dT * 0.3)
-      } else if (isBottomCorner && isLeftCorner) {
-        sampleX = Math.round(dL * 0.3)
-        sampleY = bgRawH - 1 - Math.round(dB * 0.3)
-      } else if (isBottomCorner && isRightCorner) {
-        sampleX = bgRawW - 1 - Math.round(dR * 0.3)
-        sampleY = bgRawH - 1 - Math.round(dB * 0.3)
-      }
-      sampleX = Math.max(0, Math.min(bgRawW - 1, sampleX))
-      sampleY = Math.max(0, Math.min(bgRawH - 1, sampleY))
-
-      const i       = (y       * bgRawW + x      ) * 4
-      const sampleI = (sampleY * bgRawW + sampleX) * 4
-      borderData[i]     = bgRawData[sampleI]
-      borderData[i + 1] = bgRawData[sampleI + 1]
-      borderData[i + 2] = bgRawData[sampleI + 2]
+      const i = (y * bgRawW + x) * 4
+      borderData[i]     = bgRawData[i]
+      borderData[i + 1] = bgRawData[i + 1]
+      borderData[i + 2] = bgRawData[i + 2]
       borderData[i + 3] = alpha
     }
   }
