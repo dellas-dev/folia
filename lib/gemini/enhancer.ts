@@ -435,22 +435,31 @@ async function callGroqVision(
   imageBase64: string,
   mimeType: string,
   userMessage: string,
-  systemPrompt: string
+  systemPrompt: string,
+  referenceImageBase64?: string,
+  referenceImageMimeType?: string
 ): Promise<string> {
+  const imageContent: Array<{ type: string; image_url?: { url: string }; text?: string }> = [
+    {
+      type: 'image_url',
+      image_url: { url: `data:${mimeType};base64,${imageBase64}` },
+    },
+  ]
+
+  if (referenceImageBase64 && referenceImageMimeType) {
+    imageContent.push({
+      type: 'image_url',
+      image_url: { url: `data:${referenceImageMimeType};base64,${referenceImageBase64}` },
+    })
+  }
+
+  imageContent.push({ type: 'text', text: userMessage })
+
   const completion = await getGroq().chat.completions.create({
     model: VISION_MODEL,
     messages: [
       { role: 'system', content: systemPrompt },
-      {
-        role: 'user',
-        content: [
-          {
-            type: 'image_url',
-            image_url: { url: `data:${mimeType};base64,${imageBase64}` },
-          },
-          { type: 'text', text: userMessage },
-        ],
-      },
+      { role: 'user', content: imageContent as any },
     ],
     temperature: 0.7,
     max_tokens: 400,
@@ -708,7 +717,7 @@ Output ONLY the JSON, nothing else.`
 }
 
 // Analyzes a design image and returns a Flux Schnell background-only prompt.
-// The prompt requests an empty center area so the design can be composited on top.
+// The invitation card is composited on top later — the prompt focuses on surface and props only.
 export async function analyzeDesignForBackground(
   designBase64: string,
   mimeType: string,
@@ -716,6 +725,8 @@ export async function analyzeDesignForBackground(
     sceneLabel?: string
     scenePrompt?: string
     customPrompt?: string
+    referenceImageBase64?: string
+    referenceImageMimeType?: string
   }
 ): Promise<string> {
   const BACKGROUND_SYSTEM_PROMPT = `You are an expert Photography Art Director specializing in high-end Wedding Stationery Mockups.
@@ -730,6 +741,48 @@ STRICT VISUAL GUIDELINES:
 
 OUTPUT FORMAT:
 Provide ONLY the final prompt for the image generator (Flux/Fal.ai). No conversational text.`
+
+  // ── REFERENCE-GUIDED MODE: reference photo drives scene description ──────
+  // When a real reference photo is provided, skip preset vocabulary entirely.
+  // Groq looks at both images: Image 1 = invitation design (for color harmony),
+  // Image 2 = reference photo (scene to recreate without the design).
+  if (options?.referenceImageBase64 && options?.referenceImageMimeType) {
+    const referenceGuidedMsg = `You are looking at TWO images:
+- IMAGE 1: The user's invitation design (analyze its color palette and mood only)
+- IMAGE 2: A real reference photo of a physical mockup scene
+
+Your task: Recreate the exact scene from IMAGE 2 as a Flux Schnell background-only prompt.
+The invitation card will be composited on top later — do NOT include any card, paper, or invitation in the prompt.
+
+Extract from IMAGE 2:
+1. Surface material (marble, wood, linen, velvet, travertine, etc.)
+2. Decorative props present (eucalyptus, flowers, ribbon, candles, etc.) — position them at the OUTER EDGES only
+3. Lighting quality and direction
+4. Color temperature and palette
+5. Camera angle (flatlay / slight angle / etc.)
+
+Adjust the color palette to complement the dominant colors from IMAGE 1 (the invitation design).
+
+Output ONLY the final image-generator prompt. No explanation. No markdown. Under 80 words.`
+
+    try {
+      const raw = await callGroqVision(
+        designBase64,
+        mimeType,
+        referenceGuidedMsg,
+        BACKGROUND_SYSTEM_PROMPT,
+        options.referenceImageBase64,
+        options.referenceImageMimeType
+      )
+      if (raw) {
+        console.log('[Groq] analyzeDesignForBackground — REFERENCE-GUIDED mode')
+        console.log('[Groq] Reference-guided prompt:', raw.trim())
+        return raw.trim()
+      }
+    } catch (error: any) {
+      console.warn('[Groq] Reference-guided mode failed, falling back to preset/custom:', error?.message)
+    }
+  }
 
   // Prefer locked PRESET_MAPPING data over free-form scenePrompt text when available.
   // This prevents Groq from drifting into generic vocabulary and ensures each

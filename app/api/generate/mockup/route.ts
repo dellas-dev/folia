@@ -24,6 +24,7 @@ type GenerateMockupBody = {
   invitation_r2_key?: string
   scene_preset?: MockupScenePreset
   custom_prompt?: string
+  scene_reference_r2_key?: string
   sigma?: unknown
 }
 
@@ -133,6 +134,29 @@ export async function POST(request: Request) {
     }
     console.log('[mockup] Phase 1 OK — size:', invitationBuffer.length, 'mime:', invitationMimeType)
 
+    // ── Phase 1.5: Fetch scene reference image from R2 (optional) ────────
+    let referenceImageBase64: string | undefined
+    let referenceImageMimeType: string | undefined
+
+    if (body.scene_reference_r2_key) {
+      if (!isOwnedR2Key(body.scene_reference_r2_key, user.id)) {
+        return Response.json({ error: 'Forbidden' }, { status: 403 })
+      }
+      try {
+        const refSignedUrl = await getSignedR2Url(body.scene_reference_r2_key, 300)
+        const refRes = await fetch(refSignedUrl)
+        if (!refRes.ok) throw new Error(`R2 fetch ${refRes.status} ${refRes.statusText}`)
+        const refBuffer = Buffer.from(await refRes.arrayBuffer())
+        referenceImageBase64 = refBuffer.toString('base64')
+        referenceImageMimeType = refRes.headers.get('content-type') || 'image/jpeg'
+        console.log('[mockup] Phase 1.5 OK — reference image fetched, mime:', referenceImageMimeType)
+      } catch (error) {
+        console.warn('[mockup] Phase 1.5 — failed to fetch reference, proceeding without it:', error)
+        referenceImageBase64 = undefined
+        referenceImageMimeType = undefined
+      }
+    }
+
     // ── Phase 2: Groq Vision analyzes design → background prompt ─────────
     console.log('[mockup] Phase 2: Groq vision analysis')
     const sceneOption = body.scene_preset ? getSceneOption(body.scene_preset) : undefined
@@ -145,6 +169,8 @@ export async function POST(request: Request) {
           sceneLabel: sceneOption?.label,
           scenePrompt: sceneOption?.prompt,
           customPrompt: body.custom_prompt,
+          referenceImageBase64,
+          referenceImageMimeType,
         }
       )
     } catch (error) {
