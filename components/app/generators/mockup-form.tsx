@@ -52,6 +52,10 @@ export function MockupForm({ tier, startingCredits, initialInvitationKey, initia
   const [referencePreviewUrl, setReferencePreviewUrl] = useState<string | null>(null)
   const [referenceUploading, setReferenceUploading] = useState(false)
   const [analyzingRef, setAnalyzingRef] = useState(false)
+  const [extractKey, setExtractKey] = useState<string | null>(null)
+  const [extractPreviewUrl, setExtractPreviewUrl] = useState<string | null>(null)
+  const [extractUploading, setExtractUploading] = useState(false)
+  const [extracting, setExtracting] = useState(false)
   const [credits, setCredits] = useState(startingCredits)
   const [error, setError] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
@@ -194,6 +198,48 @@ export function MockupForm({ tier, startingCredits, initialInvitationKey, initia
     }
 
     return result.value
+  }
+
+  async function uploadExtractReference(file: File) {
+    setExtractUploading(true)
+    setError(null)
+    setExtractPreviewUrl(URL.createObjectURL(file))
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('purpose', 'reference')
+      const response = await fetch('/api/upload', { method: 'POST', body: formData })
+      const data = await response.json() as { error?: string; r2_key?: string }
+      if (!response.ok || !data.r2_key) throw new Error(data.error || 'Upload failed.')
+      setExtractKey(data.r2_key)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Upload failed.')
+      setExtractPreviewUrl(null)
+    } finally {
+      setExtractUploading(false)
+    }
+  }
+
+  async function handleExtract() {
+    if (!extractKey) return
+    setExtracting(true)
+    setError(null)
+    try {
+      const response = await fetch('/api/mockup/extract', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reference_r2_key: extractKey }),
+      })
+      const data = await response.json() as MockupResponse & { error?: string }
+      if (!response.ok) throw new Error(data.error || 'Extract failed.')
+      setResultUrl(data.result.signed_url)
+      setResultR2Key(data.result.r2_key)
+      setCredits(data.credits_remaining)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Extract Template failed.')
+    } finally {
+      setExtracting(false)
+    }
   }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -559,6 +605,87 @@ export function MockupForm({ tier, startingCredits, initialInvitationKey, initia
               ) : null}
             </div>
           </form>
+
+          {/* ── Extract from Reference (template mode only) ── */}
+          {mode === 'template' ? (
+            <div className="mt-6 space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="h-px flex-1" style={{ backgroundColor: '#eeeeee' }} />
+                <span className="text-[11px]" style={{ color: '#c0c8c9' }}>atau</span>
+                <div className="h-px flex-1" style={{ backgroundColor: '#eeeeee' }} />
+              </div>
+
+              <div className="space-y-2.5">
+                <p className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: '#70787a' }}>
+                  Extract from Reference
+                </p>
+                <p className="text-[11px] leading-5" style={{ color: '#70787a' }}>
+                  Upload foto mockup dari Etsy, Pinterest, atau foto asli.
+                  AI akan menghapus desain yang ada dan menggantinya dengan
+                  kertas putih kosong siap di-edit di Photoshop.
+                </p>
+
+                <label
+                  className={cn(
+                    'flex min-h-24 cursor-pointer flex-col items-center justify-center gap-2 rounded-[1rem] px-5 py-4 text-center transition-all',
+                    (extractUploading || extracting) && 'cursor-wait opacity-60'
+                  )}
+                  style={{ border: '1.5px dashed rgba(192,200,201,0.7)', backgroundColor: '#f4f3f3' }}
+                  onMouseEnter={(e) => { if (!extractUploading && !extracting) { e.currentTarget.style.borderColor = 'rgba(55,101,107,0.5)'; e.currentTarget.style.backgroundColor = 'rgba(55,101,107,0.02)' } }}
+                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'rgba(192,200,201,0.7)'; e.currentTarget.style.backgroundColor = '#f4f3f3' }}
+                >
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    className="sr-only"
+                    disabled={extractUploading || extracting}
+                    onChange={async (e) => { const f = e.target.files?.[0]; if (!f) return; await uploadExtractReference(f); e.target.value = '' }}
+                  />
+                  {extractUploading
+                    ? <LoaderCircle className="size-4 animate-spin" style={{ color: '#37656b' }} />
+                    : <Upload className="size-4" style={{ color: '#37656b' }} />
+                  }
+                  <p className="text-xs font-medium" style={{ color: '#404849' }}>Upload foto mockup referensi</p>
+                  <p className="text-[10px]" style={{ color: '#c0c8c9' }}>JPG, PNG, WEBP</p>
+                </label>
+
+                {extractPreviewUrl ? (
+                  <div className="flex items-center gap-3 rounded-[0.875rem] p-3" style={{ backgroundColor: '#f4f3f3' }}>
+                    <img src={extractPreviewUrl} alt="Reference preview" className="h-12 w-auto rounded-lg object-contain" />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-semibold" style={{ color: '#404849' }}>Foto referensi siap</p>
+                      <p className="mt-0.5 text-[10px]" style={{ color: '#70787a' }}>AI akan mendeteksi area kertas otomatis</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => { setExtractKey(null); setExtractPreviewUrl(null) }}
+                      className="shrink-0 rounded-full p-1 transition-colors hover:bg-[#eeeeee]"
+                    >
+                      <X className="size-3.5" style={{ color: '#70787a' }} />
+                    </button>
+                  </div>
+                ) : null}
+
+                <button
+                  type="button"
+                  onClick={handleExtract}
+                  disabled={!extractKey || extractUploading || extracting}
+                  className="flex h-11 w-full items-center justify-center gap-2 rounded-full text-sm font-bold transition-opacity hover:opacity-90 disabled:opacity-40"
+                  style={{ backgroundColor: '#f4f3f3', color: '#37656b', border: '1.5px solid rgba(55,101,107,0.3)' }}
+                >
+                  {extracting
+                    ? <><LoaderCircle className="size-4 animate-spin" />AI sedang mendeteksi area kertas...</>
+                    : <><ScanSearch className="size-4" />Ekstrak Template dari Referensi</>
+                  }
+                </button>
+                {!extracting ? (
+                  <p className="text-center text-[10px] uppercase tracking-[0.16em]" style={{ color: '#c0c8c9' }}>
+                    Uses <strong style={{ color: '#70787a' }}>1</strong> credit
+                  </p>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
         </div>
 
         {/* ── Right: Preview ────────────────────────────────── */}
