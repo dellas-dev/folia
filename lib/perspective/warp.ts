@@ -7,6 +7,7 @@ import {
   invertMatrix3x3,
   isInsideQuad,
 } from './homography'
+import { normalizeInternalBlurSigma } from '@/lib/mockup/sigma'
 import type { MockupScenePreset } from '@/types'
 
 const MAX_DESIGN_PX = 1200
@@ -216,7 +217,8 @@ export async function compositeDesignCentered(
   designBuffer: Buffer,
   backgroundBuffer: Buffer,
   colorTemp: 'warm' | 'cool' | 'neutral' = 'neutral',
-  scenePreset?: MockupScenePreset
+  scenePreset?: MockupScenePreset,
+  sigma?: number
 ): Promise<Buffer> {
   const bgMeta = await sharp(backgroundBuffer).metadata()
   const bgW = bgMeta.width!
@@ -225,6 +227,7 @@ export async function compositeDesignCentered(
   const placement = getMockupPlacement(scenePreset)
   const maxW = Math.round(bgW * placement.maxWRatio)
   const maxH = Math.round(bgH * placement.maxHRatio)
+  const designBlurSigma = normalizeInternalBlurSigma(sigma)
 
   // Flatten to an off-white paper tone, resize, then slightly soften the edge
   // so the card integrates without a harsh digital cutout.
@@ -232,7 +235,7 @@ export async function compositeDesignCentered(
   const design = await sharp(designBuffer)
     .resize(maxW, maxH, { fit: 'inside', withoutEnlargement: false })
     .flatten({ background: paperColor })
-    .blur(0.22)
+    .blur(designBlurSigma)
     .png()
     .toBuffer()
 
@@ -256,7 +259,7 @@ export async function compositeDesignCentered(
       background: { r: 28, g: 22, b: 18, alpha: placement.shadowAlpha },
     },
   })
-    .blur(placement.shadowBlur)
+    .blur(normalizeInternalBlurSigma(placement.shadowBlur))
     .png()
     .toBuffer()
 
@@ -365,7 +368,7 @@ export async function compositeOverlay(
   // Soften the hard alpha edge so the design looks printed rather than sticker-pasted.
   // blur(0.7) softens the transparent→opaque boundary by ~1–2px without visibly
   // blurring the interior of the design at typical output sizes.
-  const softWarp = await sharp(warpedPng).blur(0.7).toBuffer()
+  const softWarp = await sharp(warpedPng).blur(normalizeInternalBlurSigma(0.7)).toBuffer()
 
   return sharp(refBuffer)
     .resize(MAX_REF_PX, MAX_REF_PX, { fit: 'inside', withoutEnlargement: true })

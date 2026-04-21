@@ -17,6 +17,12 @@ import {
 
 import { useToast } from '@/components/ui/toast-provider'
 import { downloadR2File } from '@/lib/download'
+import {
+  DEFAULT_MOCKUP_SIGMA,
+  parseMockupSigmaInput,
+  SHARP_BLUR_SIGMA_MAX,
+  SHARP_BLUR_SIGMA_MIN,
+} from '@/lib/mockup/sigma'
 import { cn } from '@/lib/utils'
 import { MOCKUP_SCENE_OPTIONS, type MockupScenePreset, type UserTier } from '@/types'
 
@@ -40,6 +46,7 @@ export function MockupForm({ tier, startingCredits, initialInvitationKey, initia
   const [invitationPreviewUrl, setInvitationPreviewUrl] = useState<string | null>(initialPreviewUrl ?? null)
   const [scenePreset, setScenePreset] = useState<MockupScenePreset | null>(null)
   const [customDetails, setCustomDetails] = useState('')
+  const [sigmaInput, setSigmaInput] = useState(String(DEFAULT_MOCKUP_SIGMA))
   const [_referenceKey, setReferenceKey] = useState<string | null>(null)
   const [referencePreviewUrl, setReferencePreviewUrl] = useState<string | null>(null)
   const [referenceUploading, setReferenceUploading] = useState(false)
@@ -171,11 +178,31 @@ export function MockupForm({ tier, startingCredits, initialInvitationKey, initia
     setReferencePreviewUrl(null)
   }
 
+  function validateSigmaInput() {
+    const result = parseMockupSigmaInput(sigmaInput)
+    if (!result.ok) {
+      setError(result.error)
+      return null
+    }
+
+    setError(null)
+
+    if (result.value === undefined) {
+      setSigmaInput(String(DEFAULT_MOCKUP_SIGMA))
+      return DEFAULT_MOCKUP_SIGMA
+    }
+
+    return result.value
+  }
+
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setSubmitting(true)
     setError(null)
     try {
+      const sigma = validateSigmaInput()
+      if (sigma === null) return
+
       const response = await fetch('/api/generate/mockup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -183,6 +210,7 @@ export function MockupForm({ tier, startingCredits, initialInvitationKey, initia
           invitation_r2_key: invitationKey,
           scene_preset: scenePreset ?? undefined,
           custom_prompt: customDetails.trim() || undefined,
+          sigma,
         }),
       })
       const data = await response.json() as MockupResponse & { error?: string }
@@ -295,7 +323,7 @@ export function MockupForm({ tier, startingCredits, initialInvitationKey, initia
                   Your Design
                 </label>
                 <span className="text-[10px] uppercase tracking-[0.16em]" style={{ color: '#c0c8c9' }}>
-                  JPG, PNG, SVG
+                  JPG, PNG, WEBP
                 </span>
               </div>
               <label
@@ -413,6 +441,37 @@ export function MockupForm({ tier, startingCredits, initialInvitationKey, initia
                 />
               </div>
             ) : null}
+
+            <div className="space-y-2.5">
+              <label htmlFor="mockup-sigma" className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: '#70787a' }}>
+                Edge Blur Sigma
+              </label>
+              <input
+                id="mockup-sigma"
+                type="number"
+                inputMode="decimal"
+                min={SHARP_BLUR_SIGMA_MIN}
+                max={SHARP_BLUR_SIGMA_MAX}
+                step="0.1"
+                value={sigmaInput}
+                onChange={(e) => setSigmaInput(e.target.value)}
+                onBlur={(e) => {
+                  const sigma = validateSigmaInput()
+                  if (sigma !== null) {
+                    setSigmaInput(String(sigma))
+                  }
+                  e.currentTarget.style.borderColor = 'transparent'
+                  e.currentTarget.style.backgroundColor = '#f4f3f3'
+                  e.currentTarget.style.boxShadow = 'none'
+                }}
+                className="w-full rounded-[0.875rem] px-4 py-3 text-sm outline-none transition-all"
+                style={{ backgroundColor: '#f4f3f3', color: '#1a1c1c', border: '1.5px solid transparent' }}
+                onFocus={(e) => { e.currentTarget.style.borderColor = 'rgba(55,101,107,0.4)'; e.currentTarget.style.backgroundColor = '#ffffff'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(55,101,107,0.08)' }}
+              />
+              <p className="text-[11px] leading-5" style={{ color: '#70787a' }}>
+                Controls the paper edge softness. Valid range: {SHARP_BLUR_SIGMA_MIN} to {SHARP_BLUR_SIGMA_MAX}. Default: {DEFAULT_MOCKUP_SIGMA}.
+              </p>
+            </div>
 
             {/* Alerts */}
             {error ? (
