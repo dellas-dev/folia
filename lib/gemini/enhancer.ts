@@ -659,37 +659,39 @@ export async function analyzeDesignForBackground(
     customPrompt?: string
   }
 ): Promise<string> {
-  const BACKGROUND_SYSTEM_PROMPT = `You are a product photography prompt specialist for Etsy stationery mockups.
+  const BACKGROUND_SYSTEM_PROMPT = `You are an expert Photography Art Director specializing in high-end Wedding Stationery Mockups.
+Your job is to analyze a user's invitation design and describe a matching physical environment for a professional photoshoot.
 
-Your job: analyze the uploaded invitation/stationery design and return ONE background flatlay prompt for an AI image generator.
+STRICT VISUAL GUIDELINES:
+1. LIGHTING: Always specify "Dappled sunlight", "Gobo shadows", or "Soft morning light through a window". This is non-negotiable for a premium look.
+2. COMPOSITION: Describe a "Flatlay" or "Perspective" view. Demand a "clear, empty central area" for the invitation to be placed later.
+3. TEXTURES: Use words like "Fine-grained paper texture", "Wrinkled organic linen", "Travertine stone", or "Raw silk fabric".
+4. DECORATORS: Suggest 2-3 realistic elements based on the design's vibe (e.g., "Eucalyptus sprigs", "Dried white rose petals", "Vintage wax seal stamp", "Gold minimalist scissors").
+5. COLOR PALETTE: Ensure the background colors complement the colors you see in the user's design.
 
-RULES:
-- Describe ONLY the background/surface — NO card or invitation visible
-- Treat any provided scene direction as a HARD composition constraint, but simplify it into a cleaner premium listing photo
-- Decorative props must be MINIMAL and SUBORDINATE to the invitation: maximum 2 prop types total
-- Place decorative props (real flowers, botanicals, ribbon, etc.) around the EDGES only
-- The CENTER must be LEFT COMPLETELY EMPTY and BRIGHT — this is where the card will be placed
-- Negative space must dominate the composition
-- Avoid large flowers, bouquets, hero props, or anything that competes with the invitation
-- If the invitation is already floral or busy, reduce the scene styling and use quieter supporting props and cleaner surfaces
-- Match props and surface to the design's color palette and aesthetic, but do not mirror the invitation's full decorative density
-- Top-down flat lay perspective
-- Realistic product photography style
-
-OUTPUT FORMAT (35-50 words, comma-separated):
-Professional top-down flatlay photography, [premium surface], [1-2 quiet supporting props at outer edges only], soft natural daylight from above, generous bright negative space in center, restrained organic shadows, refined premium stationery listing photo
-
-Do NOT mention any card, invitation, bouquet centerpiece, frame, or paper. Only describe the background scene.`
+OUTPUT FORMAT:
+Provide ONLY the final prompt for the image generator (Flux/Fal.ai). No conversational text.`
 
   const userMsg = options?.scenePrompt
-    ? `Analyze this design. Use this scene direction as a hard constraint for surface, mood, and prop vocabulary: "${options.scenePrompt}".
+    ? `Analyze this invitation design and produce a premium wedding stationery mockup scene prompt.
+Use this scene direction as a hard constraint for surface, mood, and prop vocabulary: "${options.scenePrompt}".
 Scene label: "${options.sceneLabel ?? 'preset scene'}".
-Simplify it into a more premium, restrained listing composition with stronger negative space and less decorative clutter.
-${options.customPrompt ? `Optional extra detail from user: "${options.customPrompt}". Apply it only if it does not increase clutter.` : ''}`
+${options.customPrompt ? `Optional extra detail from user: "${options.customPrompt}". Apply it only if it improves the scene without adding clutter.` : ''}
+The final prompt must:
+- keep a clear, empty central area for later invitation placement
+- use either Flatlay or Perspective composition
+- include one approved lighting cue
+- include tactile premium textures
+- include 2-3 realistic decorators at the outer edges only
+- keep the palette complementary to the invitation artwork
+- return only the final image-generator prompt`
     : options?.customPrompt
-      ? `Analyze this design's botanical elements, dominant colors, and aesthetic. Create the most complementary premium background flatlay prompt.
-Use this optional extra direction only if it keeps the scene restrained and uncluttered: "${options.customPrompt}".`
-      : `Analyze this design's botanical elements, dominant colors, and aesthetic. Create the most complementary premium background flatlay prompt with restrained styling and strong negative space.`
+      ? `Analyze this invitation design's decorative elements, dominant colors, and overall mood.
+Create a premium wedding stationery mockup scene prompt using this optional extra direction only if it stays refined and uncluttered: "${options.customPrompt}".
+The final prompt must keep a clear, empty central area, use Flatlay or Perspective composition, include one approved lighting cue, mention tactile textures, include 2-3 realistic decorators, keep colors complementary to the design, and return only the final image-generator prompt.`
+      : `Analyze this invitation design's decorative elements, dominant colors, and overall mood.
+Create the most suitable premium wedding stationery mockup scene prompt.
+The final prompt must keep a clear, empty central area, use Flatlay or Perspective composition, include one approved lighting cue, mention tactile textures, include 2-3 realistic decorators, keep colors complementary to the design, and return only the final image-generator prompt.`
 
   try {
     const raw = await callGroqVision(designBase64, mimeType || 'image/png', userMsg, BACKGROUND_SYSTEM_PROMPT)
@@ -725,22 +727,23 @@ function buildFallbackBackgroundPrompt(options?: {
 
   if (rawDirection) {
     return [
-      'Professional top-down flatlay photography',
+      'Flatlay premium wedding stationery photography',
       simplifySceneDirection(rawDirection),
-      'generous bright negative space in center',
-      'restrained organic shadows',
-      'refined premium stationery listing photo',
+      'clear empty central area for invitation placement',
+      'soft morning light through a window',
+      'complementary warm neutral palette',
+      'refined editorial product photoshoot',
     ].join(', ')
   }
 
   return [
-    'Professional top-down flatlay photography',
-    'clean ivory stone or linen surface',
-    'one or two quiet botanical or ribbon accents at the outer edges only',
-    'soft natural daylight from above',
-    'generous bright negative space in center',
-    'restrained organic shadows',
-    'refined premium stationery listing photo',
+    'Flatlay premium wedding stationery photography',
+    'travertine stone with wrinkled organic linen and fine-grained paper texture',
+    'eucalyptus sprigs, dried white rose petals, and a vintage wax seal stamp at the outer edges only',
+    'soft morning light through a window',
+    'clear empty central area for invitation placement',
+    'warm neutral palette that complements the invitation artwork',
+    'refined editorial product photoshoot',
   ].join(', ')
 }
 
@@ -755,9 +758,15 @@ function simplifySceneDirection(input: string) {
     .replace(/fresh peonies, roses, and linen fabric background/gi, 'soft linen surface with minimal blush floral accents at the edges')
     .replace(/fresh eucalyptus sprigs and small white flowers arranged around it/gi, 'subtle eucalyptus accents at the outer edges')
     .replace(/surrounded by/g, 'with')
-    .replace(/soft natural light/gi, 'soft natural daylight')
-    .replace(/warm candlelight ambiance/gi, 'warm restrained candlelit glow')
-    .replace(/bright cheerful lighting/gi, 'soft refined lighting')
+    .replace(/soft natural light/gi, 'soft morning light through a window')
+    .replace(/soft natural daylight from above/gi, 'soft morning light through a window')
+    .replace(/warm candlelight ambiance/gi, 'gobo shadows with a warm restrained glow')
+    .replace(/bright cheerful lighting/gi, 'dappled sunlight')
+    .replace(/top-down flat lay perspective/gi, 'Flatlay view')
+    .replace(/top-down flatlay photography/gi, 'Flatlay view')
+    .replace(/flat lay/gi, 'Flatlay')
+    .replace(/negative space in center/gi, 'clear empty central area')
+    .replace(/negative space/gi, 'clear empty central area')
     .replace(/\s+/g, ' ')
     .replace(/\s+,/g, ',')
     .replace(/,+/g, ',')
