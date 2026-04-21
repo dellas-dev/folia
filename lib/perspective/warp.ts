@@ -255,7 +255,7 @@ export async function compositeDesignCentered(
   for (let i = 0; i < localSample.length; i += 3) {
     rSum += localSample[i]; gSum += localSample[i + 1]; bSum += localSample[i + 2]
   }
-  const BG_BLEND = 0.42  // 42% scene color, 58% white
+  const BG_BLEND = 0.50  // 50% scene color, 50% white
   const localPaperColor = {
     r: Math.round((1 - BG_BLEND) * 255 + BG_BLEND * (rSum / localPixels)),
     g: Math.round((1 - BG_BLEND) * 255 + BG_BLEND * (gSum / localPixels)),
@@ -280,7 +280,7 @@ export async function compositeDesignCentered(
     // Lift brightness slightly and desaturate to match ambient background mood,
     // then tint toward the background's dominant warmth/coolness so the card
     // feels embedded rather than pasted.
-    .modulate({ brightness: 0.97, saturation: 0.88 })
+    .modulate({ brightness: 0.93, saturation: 0.80 })
     .tint(tintColor)
     // Color temperature matching: nudge RGB channels to prevent the card looking
     // "too blue/cool" against a warm AI background (or vice versa).
@@ -333,7 +333,7 @@ export async function compositeDesignCentered(
   const [contactShadow, castShadow] = await Promise.all([
     sharp(Buffer.from(
       `<svg width="${dW + CONTACT_PAD * 2}" height="${dH + CONTACT_PAD * 2}" xmlns="http://www.w3.org/2000/svg">` +
-      `<rect x="${CONTACT_PAD}" y="${CONTACT_PAD}" width="${dW}" height="${dH}" fill="rgba(28,20,14,0.22)"/>` +
+      `<rect x="${CONTACT_PAD}" y="${CONTACT_PAD}" width="${dW}" height="${dH}" fill="rgba(28,20,14,0.14)"/>` +
       `</svg>`
     ))
       .blur(normalizeInternalBlurSigma(CONTACT_BLUR))
@@ -341,7 +341,7 @@ export async function compositeDesignCentered(
       .toBuffer(),
     sharp(Buffer.from(
       `<svg width="${dW + shadowOffsetX + CAST_PAD}" height="${dH + shadowOffsetY + CAST_PAD}" xmlns="http://www.w3.org/2000/svg">` +
-      `<rect x="${shadowOffsetX}" y="${shadowOffsetY}" width="${dW}" height="${dH}" fill="rgba(22,16,10,0.13)"/>` +
+      `<rect x="${shadowOffsetX}" y="${shadowOffsetY}" width="${dW}" height="${dH}" fill="rgba(22,16,10,0.08)"/>` +
       `</svg>`
     ))
       .blur(normalizeInternalBlurSigma(CAST_BLUR))
@@ -443,10 +443,38 @@ export async function compositeDesignCentered(
       const alpha = Math.min(255, Math.round(Math.max(cornerAlpha, edgeAlpha)))
       if (alpha === 0) continue
 
-      const i = (y * bgRawW + x) * 4
-      borderData[i]     = bgRawData[i]
-      borderData[i + 1] = bgRawData[i + 1]
-      borderData[i + 2] = bgRawData[i + 2]
+      // For corner pixels, blend in colors sampled from bg image edges
+      // This pulls flower colors from where they actually exist (bg edges)
+      // into the card corners where bg might be empty linen.
+      const isTopCorner    = dT < CORNER_OVERLAP * 0.6
+      const isBottomCorner = dB < CORNER_OVERLAP * 0.6
+      const isLeftCorner   = dL < CORNER_OVERLAP * 0.6
+      const isRightCorner  = dR < CORNER_OVERLAP * 0.6
+
+      // Map corner pixel to nearest bg edge for color sampling
+      let sampleX = x
+      let sampleY = y
+      if (isTopCorner && isLeftCorner) {
+        sampleX = Math.round(dL * 0.3)
+        sampleY = Math.round(dT * 0.3)
+      } else if (isTopCorner && isRightCorner) {
+        sampleX = bgRawW - 1 - Math.round(dR * 0.3)
+        sampleY = Math.round(dT * 0.3)
+      } else if (isBottomCorner && isLeftCorner) {
+        sampleX = Math.round(dL * 0.3)
+        sampleY = bgRawH - 1 - Math.round(dB * 0.3)
+      } else if (isBottomCorner && isRightCorner) {
+        sampleX = bgRawW - 1 - Math.round(dR * 0.3)
+        sampleY = bgRawH - 1 - Math.round(dB * 0.3)
+      }
+      sampleX = Math.max(0, Math.min(bgRawW - 1, sampleX))
+      sampleY = Math.max(0, Math.min(bgRawH - 1, sampleY))
+
+      const i       = (y       * bgRawW + x      ) * 4
+      const sampleI = (sampleY * bgRawW + sampleX) * 4
+      borderData[i]     = bgRawData[sampleI]
+      borderData[i + 1] = bgRawData[sampleI + 1]
+      borderData[i + 2] = bgRawData[sampleI + 2]
       borderData[i + 3] = alpha
     }
   }
@@ -483,7 +511,7 @@ export async function compositeDesignCentered(
 
 function getCardTint(colorTemp: 'warm' | 'cool' | 'neutral') {
   switch (colorTemp) {
-    case 'warm':  return { r: 250, g: 239, b: 218 }
+    case 'warm':  return { r: 246, g: 232, b: 208 }
     case 'cool':  return { r: 242, g: 246, b: 252 }
     default:      return { r: 250, g: 249, b: 246 }
   }
@@ -499,7 +527,7 @@ type Matrix3 = [[number,number,number],[number,number,number],[number,number,num
 
 function getColorTempMatrix(colorTemp: 'warm' | 'cool' | 'neutral'): Matrix3 {
   switch (colorTemp) {
-    case 'warm': return [[1.08, 0, 0], [0, 1.03, 0], [0, 0, 0.91]]
+    case 'warm': return [[1.09, 0, 0], [0, 1.03, 0], [0, 0, 0.89]]
     case 'cool': return [[0.97, 0, 0], [0, 1.00, 0], [0, 0, 1.04]]
     default:     return [[1.00, 0, 0], [0, 1.00, 0], [0, 0, 1.00]]
   }
