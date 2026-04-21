@@ -314,27 +314,26 @@ export async function compositeDesignCentered(
   const shadowOffsetX = placement.shadowOffsetX
   const shadowOffsetY = placement.shadowOffsetY
 
-  // Dual-shadow system using multiply blend — SVG gray fills, NOT alpha fills.
-  // multiply(gray, bg) = gray/255 × bg  →  gray=153 ≈ 40% darken, gray=183 ≈ 28% darken.
-  // Using 'multiply' instead of 'over' prevents flat opaque blobs and preserves
-  // background texture inside the shadow, making it look physically lit.
+  // Dual-shadow system using rgba + 'over' blend — visible on light backgrounds.
+  // Previous multiply+gray approach: gray=153 → only 40% darken on white → invisible.
+  // rgba 'over' approach: alpha directly controls opacity, works on any background tone.
   //
-  // Layer A — Contact shadow: sharp halo 1-3px, anchored directly under card edges.
-  //   Canvas = card + 24px on each side → blur can decay outside card boundary.
-  //   Rect at (12,12) → composited at (left-12, top-12): shadow extends 12px beyond card.
+  // Layer A — Contact shadow: tight halo anchored to card edges, 42% opacity dark brown.
+  //   Canvas = card + CONTACT_PAD×2 on each side → blur decays fully before canvas edge.
+  //   Composited at (left-CONTACT_PAD, top-CONTACT_PAD).
   //
-  // Layer B — Cast shadow: soft directional blur 15px, shifted bottom-right by offset.
-  //   Pre-shifted rect → shadow lands offset from card origin.
-  //   Composited at (left, top) so offset is baked into the SVG coordinate space.
-  const CONTACT_BLUR = 3
-  const CONTACT_PAD  = 12
-  const CAST_BLUR    = 15
-  const CAST_PAD     = 30  // must be ≥ CAST_BLUR×2 so blur fully decays at canvas edge
+  // Layer B — Cast shadow: soft directional blur, 26% opacity, shifted bottom-right.
+  //   Pre-shifted rect → shadow lands at (left+shadowOffsetX, top+shadowOffsetY).
+  //   Composited at (left, top) so offset is baked into SVG coordinate space.
+  const CONTACT_BLUR = 6
+  const CONTACT_PAD  = 20
+  const CAST_BLUR    = 12
+  const CAST_PAD     = 40
 
   const [contactShadow, castShadow] = await Promise.all([
     sharp(Buffer.from(
       `<svg width="${dW + CONTACT_PAD * 2}" height="${dH + CONTACT_PAD * 2}" xmlns="http://www.w3.org/2000/svg">` +
-      `<rect x="${CONTACT_PAD}" y="${CONTACT_PAD}" width="${dW}" height="${dH}" fill="rgb(153,143,137)"/>` +
+      `<rect x="${CONTACT_PAD}" y="${CONTACT_PAD}" width="${dW}" height="${dH}" fill="rgba(25,18,12,0.42)"/>` +
       `</svg>`
     ))
       .blur(normalizeInternalBlurSigma(CONTACT_BLUR))
@@ -342,7 +341,7 @@ export async function compositeDesignCentered(
       .toBuffer(),
     sharp(Buffer.from(
       `<svg width="${dW + shadowOffsetX + CAST_PAD}" height="${dH + shadowOffsetY + CAST_PAD}" xmlns="http://www.w3.org/2000/svg">` +
-      `<rect x="${shadowOffsetX}" y="${shadowOffsetY}" width="${dW}" height="${dH}" fill="rgb(183,173,166)"/>` +
+      `<rect x="${shadowOffsetX}" y="${shadowOffsetY}" width="${dW}" height="${dH}" fill="rgba(20,14,8,0.26)"/>` +
       `</svg>`
     ))
       .blur(normalizeInternalBlurSigma(CAST_BLUR))
@@ -401,9 +400,8 @@ export async function compositeDesignCentered(
   return sharp(backgroundBuffer)
     .composite([
       // Cast shadow: soft directional blur, pre-shifted rect lands at (left+offsetX, top+offsetY)
-      { input: castShadow,    blend: 'multiply', left: Math.max(0, left),                top: Math.max(0, top) },
-      // Contact shadow: tight halo around card edges, canvas extends CONTACT_PAD outside card
-      { input: contactShadow, blend: 'multiply', left: Math.max(0, left - CONTACT_PAD), top: Math.max(0, top - CONTACT_PAD) },
+      { input: castShadow,    blend: 'over', left: Math.max(0, left),                top: Math.max(0, top) },
+      { input: contactShadow, blend: 'over', left: Math.max(0, left - CONTACT_PAD), top: Math.max(0, top - CONTACT_PAD) },
       // Dark edge (cardstock thickness): 3px sliver peeks below-right
       { input: darkEdge,      blend: 'over',     left: left + EDGE_PX,       top: top + EDGE_PX },
       // White paper establishes opaque base
