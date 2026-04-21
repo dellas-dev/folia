@@ -218,7 +218,10 @@ export async function compositeDesignCentered(
   backgroundBuffer: Buffer,
   colorTemp: 'warm' | 'cool' | 'neutral' = 'neutral',
   scenePreset?: MockupScenePreset,
-  sigma?: number
+  sigma?: number,
+  foregroundBuffer?: Buffer  // Optional transparent-PNG decorator (leaf, ribbon, etc.)
+                             // composited above the card to simulate physical depth.
+                             // If omitted, no foreground layer is added.
 ): Promise<Buffer> {
   const bgMeta = await sharp(backgroundBuffer).metadata()
   const bgW = bgMeta.width!
@@ -229,12 +232,59 @@ export async function compositeDesignCentered(
   const maxH = Math.round(bgH * placement.maxHRatio)
   const designBlurSigma = normalizeInternalBlurSigma(sigma)
 
+  // Sample the background at the estimated card position to derive a scene-matched
+  // paper color. Real printed card on a warm surface picks up ambient reflected light —
+  // it never looks as white as a monitor white point.
+  // Formula: 85% white + 15% scene ambient = card white that "belongs" to the scene.
+  const estLeft = Math.round((bgW - maxW) / 2 + bgW * placement.offsetXRatio)
+  const estTop  = Math.round((bgH - maxH) / 2 + bgH * placement.offsetYRatio)
+  const { data: localSample } = await sharp(backgroundBuffer)
+    .extract({
+      left:   Math.max(0, Math.min(bgW - 20, estLeft  + Math.round(maxW * 0.25))),
+      top:    Math.max(0, Math.min(bgH - 20, estTop   + Math.round(maxH * 0.25))),
+      width:  Math.min(Math.round(maxW * 0.5), bgW - Math.max(0, estLeft + Math.round(maxW * 0.25))),
+      height: Math.min(Math.round(maxH * 0.5), bgH - Math.max(0, estTop  + Math.round(maxH * 0.25))),
+    })
+    .resize(20, 20, { fit: 'fill' })
+    .removeAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true })
+
+  let rSum = 0, gSum = 0, bSum = 0
+  const localPixels = localSample.length / 3
+  for (let i = 0; i < localSample.length; i += 3) {
+    rSum += localSample[i]; gSum += localSample[i + 1]; bSum += localSample[i + 2]
+  }
+  const BG_BLEND = 0.15  // 15% scene color, 85% white
+  const localPaperColor = {
+    r: Math.round((1 - BG_BLEND) * 255 + BG_BLEND * (rSum / localPixels)),
+    g: Math.round((1 - BG_BLEND) * 255 + BG_BLEND * (gSum / localPixels)),
+    b: Math.round((1 - BG_BLEND) * 255 + BG_BLEND * (bSum / localPixels)),
+  }
+
   // Flatten to an off-white paper tone, resize, then slightly soften the edge
   // so the card integrates without a harsh digital cutout.
-  const paperColor = getPaperColor(colorTemp)
+  const paperColor = localPaperColor  // scene-matched, replaces static getPaperColor()
+  const tintColor  = getCardTint(colorTemp)
+
+  // Guaranteed tilt: ±0.5°–1.0° so the card never sits at perfect 0° alignment.
+  // Math.random() * 2 - 1 can produce values very close to 0 — this version
+  // always picks a magnitude in [0.5, 1.0] and randomly flips sign.
+  const rotationSign = Math.random() > 0.5 ? 1 : -1
+  const rotationDeg  = rotationSign * (Math.random() * 0.5 + 0.5)
+
   const design = await sharp(designBuffer)
     .resize(maxW, maxH, { fit: 'inside', withoutEnlargement: false })
     .flatten({ background: paperColor })
+    .rotate(rotationDeg, { background: paperColor })
+    // Lift brightness slightly and desaturate to match ambient background mood,
+    // then tint toward the background's dominant warmth/coolness so the card
+    // feels embedded rather than pasted.
+    .modulate({ brightness: 0.97, saturation: 0.88 })
+    .tint(tintColor)
+    // Color temperature matching: nudge RGB channels to prevent the card looking
+    // "too blue/cool" against a warm AI background (or vice versa).
+    .recomb(getColorTempMatrix(colorTemp))
     .blur(designBlurSigma)
     .png()
     .toBuffer()
@@ -249,90 +299,208 @@ export async function compositeDesignCentered(
     create: { width: dW, height: dH, channels: 3, background: paperColor },
   }).png().toBuffer()
 
-  // Keep the contact shadow light and diffuse so it does not read as a grey block.
-  const shadowPad = placement.shadowPad
-  const shadow = await sharp({
-    create: {
-      width: dW + shadowPad * 2,
-      height: dH + shadowPad * 2,
-      channels: 4,
-      background: { r: 28, g: 22, b: 18, alpha: placement.shadowAlpha },
-    },
-  })
-    .blur(normalizeInternalBlurSigma(placement.shadowBlur))
-    .png()
-    .toBuffer()
+  // Two-layer shadow system using SVG rectangles — NOT card content.
+  //
+  // Root causes of content-derived shadows:
+  //   1. greyscale+negate on design leaks the card's internal motif into shadow shape.
+  //   2. Same-size buffer at same position → blur doesn't extend outside card →
+  //      whitePaper (over) completely hides ambient shadow → zero visible halo.
+  //   3. multiply×multiply stacking over-darkens bottom-right (0.84×0.57≈0.48×bg).
+  //
+  // SVG rectangles fix all three:
+  //   • Uniform shape — shadow matches card outline, not design content.
+  //   • Ambient canvas = card + 2×blur padding on all sides → blur spreads outside card.
+  //   • Alpha-controlled 'over' blend — no multiplicative stacking.
+  const shadowOffsetX = placement.shadowOffsetX
+  const shadowOffsetY = placement.shadowOffsetY
+
+  // Dual-shadow system using multiply blend — SVG gray fills, NOT alpha fills.
+  // multiply(gray, bg) = gray/255 × bg  →  gray=153 ≈ 40% darken, gray=183 ≈ 28% darken.
+  // Using 'multiply' instead of 'over' prevents flat opaque blobs and preserves
+  // background texture inside the shadow, making it look physically lit.
+  //
+  // Layer A — Contact shadow: sharp halo 1-3px, anchored directly under card edges.
+  //   Canvas = card + 24px on each side → blur can decay outside card boundary.
+  //   Rect at (12,12) → composited at (left-12, top-12): shadow extends 12px beyond card.
+  //
+  // Layer B — Cast shadow: soft directional blur 15px, shifted bottom-right by offset.
+  //   Pre-shifted rect → shadow lands offset from card origin.
+  //   Composited at (left, top) so offset is baked into the SVG coordinate space.
+  const CONTACT_BLUR = 3
+  const CONTACT_PAD  = 12
+  const CAST_BLUR    = 15
+  const CAST_PAD     = 30  // must be ≥ CAST_BLUR×2 so blur fully decays at canvas edge
+
+  const [contactShadow, castShadow] = await Promise.all([
+    sharp(Buffer.from(
+      `<svg width="${dW + CONTACT_PAD * 2}" height="${dH + CONTACT_PAD * 2}" xmlns="http://www.w3.org/2000/svg">` +
+      `<rect x="${CONTACT_PAD}" y="${CONTACT_PAD}" width="${dW}" height="${dH}" fill="rgb(153,143,137)"/>` +
+      `</svg>`
+    ))
+      .blur(normalizeInternalBlurSigma(CONTACT_BLUR))
+      .png()
+      .toBuffer(),
+    sharp(Buffer.from(
+      `<svg width="${dW + shadowOffsetX + CAST_PAD}" height="${dH + shadowOffsetY + CAST_PAD}" xmlns="http://www.w3.org/2000/svg">` +
+      `<rect x="${shadowOffsetX}" y="${shadowOffsetY}" width="${dW}" height="${dH}" fill="rgb(183,173,166)"/>` +
+      `</svg>`
+    ))
+      .blur(normalizeInternalBlurSigma(CAST_BLUR))
+      .png()
+      .toBuffer(),
+  ])
+
+  // Dark edge strip: same card dimensions, offset 3px down-right, sits between shadow
+  // and white paper so only a 3px sliver peeks out — reads as heavy cardstock thickness.
+  const EDGE_PX = 3
+  const darkEdge = await sharp({
+    create: { width: dW, height: dH, channels: 3, background: getDarkEdgeColor(colorTemp) },
+  }).png().toBuffer()
+
+  // Thin inner highlight on card edges — simulates physical paper lekukan/edge lift.
+  // Screen blend over white is additive: brightens the 1-2px border slightly.
+  // Top + left edge highlight only — simulates light source from top-left.
+  // All-4-sides rect stroke was physically incorrect: bottom/right edges face away from light.
+  const edgeGlowSvg = Buffer.from(
+    `<svg width="${dW}" height="${dH}" xmlns="http://www.w3.org/2000/svg">` +
+    `<line x1="0" y1="0.75" x2="${dW}" y2="0.75" stroke="rgba(255,255,255,0.60)" stroke-width="1.5"/>` +
+    `<line x1="0.75" y1="0" x2="0.75" y2="${dH}" stroke="rgba(255,255,255,0.60)" stroke-width="1.5"/>` +
+    `</svg>`
+  )
+  const edgeGlow = await sharp(edgeGlowSvg).png().toBuffer()
+
+  // Grain overlay — measure background luminance variance from a downsampled raw
+  // buffer (avoids .statistics() which is absent from this Sharp type version).
+  // Card grain = ~40% of bg stdev, clamped 4–18: visible but subordinate.
+  const { data: bgSample } = await sharp(backgroundBuffer)
+    .resize(64, 64, { fit: 'inside' })
+    .removeAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true })
+  let lumSum = 0, lumSumSq = 0
+  const pixelCount = bgSample.length / 3
+  for (let i = 0; i < bgSample.length; i += 3) {
+    const lum = bgSample[i] * 0.299 + bgSample[i + 1] * 0.587 + bgSample[i + 2] * 0.114
+    lumSum += lum
+    lumSumSq += lum * lum
+  }
+  const bgMean = lumSum / pixelCount
+  const bgStdev = Math.sqrt(Math.max(0, lumSumSq / pixelCount - bgMean * bgMean))
+  const grainMag = Math.max(4, Math.min(18, Math.round(bgStdev * 0.4)))
+
+  const grainData = Buffer.alloc(dW * dH * 4)
+  for (let i = 0; i < grainData.length; i += 4) {
+    const v = 128 + Math.round((Math.random() - 0.5) * grainMag * 2)
+    grainData[i] = grainData[i + 1] = grainData[i + 2] = Math.max(0, Math.min(255, v))
+    grainData[i + 3] = 18  // ~7% opacity — grain felt not seen
+  }
+  const grainBuffer = await sharp(grainData, {
+    raw: { width: dW, height: dH, channels: 4 },
+  }).png().toBuffer()
 
   return sharp(backgroundBuffer)
     .composite([
-      // Shadow behind card, offset slightly down-right
-      {
-        input: shadow,
-        blend: 'over',
-        left: Math.max(0, left - shadowPad + placement.shadowOffsetX),
-        top:  Math.max(0, top  - shadowPad + placement.shadowOffsetY),
-      },
+      // Cast shadow: soft directional blur, pre-shifted rect lands at (left+offsetX, top+offsetY)
+      { input: castShadow,    blend: 'multiply', left: Math.max(0, left),                top: Math.max(0, top) },
+      // Contact shadow: tight halo around card edges, canvas extends CONTACT_PAD outside card
+      { input: contactShadow, blend: 'multiply', left: Math.max(0, left - CONTACT_PAD), top: Math.max(0, top - CONTACT_PAD) },
+      // Dark edge (cardstock thickness): 3px sliver peeks below-right
+      { input: darkEdge,      blend: 'over',     left: left + EDGE_PX,       top: top + EDGE_PX },
       // White paper establishes opaque base
-      { input: whitePaper, blend: 'over',     left, top },
+      { input: whitePaper,    blend: 'over',     left, top },
       // Design on white: multiply(255, color) = color — full fidelity
-      { input: design,     blend: 'multiply', left, top },
+      { input: design,        blend: 'multiply', left, top },
+      // Paper edge highlight: thin inner glow for physical paper feel
+      { input: edgeGlow,      blend: 'screen',   left, top },
+      // Grain overlay: ~7% opacity random noise scaled to background texture level
+      { input: grainBuffer,   blend: 'overlay',  left, top },
+      // Foreground decorator (optional): transparent-PNG cutout (leaf, ribbon, etc.)
+      // overlaps top-left card corner — creates physical depth "sandwich" effect.
+      ...(foregroundBuffer ? [{ input: foregroundBuffer, blend: 'over' as const, left: Math.max(0, left - 20), top: Math.max(0, top - 15) }] : []),
     ])
     .png()
     .toBuffer()
 }
 
-function getPaperColor(colorTemp: 'warm' | 'cool' | 'neutral') {
+
+function getCardTint(colorTemp: 'warm' | 'cool' | 'neutral') {
   switch (colorTemp) {
-    case 'warm':
-      return { r: 252, g: 248, b: 242 }
-    case 'cool':
-      return { r: 248, g: 250, b: 252 }
-    default:
-      return { r: 250, g: 249, b: 246 }
+    case 'warm':  return { r: 253, g: 247, b: 232 }
+    case 'cool':  return { r: 242, g: 246, b: 252 }
+    default:      return { r: 250, g: 249, b: 246 }
+  }
+}
+
+// Dark compressed edge that peeks out from behind the card — simulates 300gsm cardstock.
+// Color is warm-tinted dark grey (not black) so it reads as paper, not a drop shadow.
+// RGB channel matrix for color temperature correction on the card surface.
+// Warm background: boost R, slight G, pull B so card doesn't look too cool/blue.
+// Cool background: pull R slightly, hold G, boost B for consistent temperature.
+// Neutral: identity — no color shift.
+type Matrix3 = [[number,number,number],[number,number,number],[number,number,number]]
+
+function getColorTempMatrix(colorTemp: 'warm' | 'cool' | 'neutral'): Matrix3 {
+  switch (colorTemp) {
+    case 'warm': return [[1.05, 0, 0], [0, 1.02, 0], [0, 0, 0.95]]
+    case 'cool': return [[0.97, 0, 0], [0, 1.00, 0], [0, 0, 1.04]]
+    default:     return [[1.00, 0, 0], [0, 1.00, 0], [0, 0, 1.00]]
+  }
+}
+
+function getDarkEdgeColor(colorTemp: 'warm' | 'cool' | 'neutral') {
+  switch (colorTemp) {
+    case 'warm':  return { r: 138, g: 120, b: 105 }
+    case 'cool':  return { r: 118, g: 122, b: 132 }
+    default:      return { r: 128, g: 118, b: 112 }
   }
 }
 
 function getMockupPlacement(scenePreset?: MockupScenePreset) {
   switch (scenePreset) {
     case 'floral-flatlay':
+    case 'organic-eucalyptus':
       return {
         maxWRatio: 0.46,
         maxHRatio: 0.62,
         offsetXRatio: 0.03,
         offsetYRatio: -0.015,
         shadowPad: 12,
-        shadowBlur: 22,
-        shadowAlpha: 0.085,
-        shadowOffsetX: 2,
-        shadowOffsetY: 4,
+        shadowBlur: 8,
+        shadowAlpha: 0.28,
+        shadowOffsetX: 12,
+        shadowOffsetY: 12,
       }
     case 'marble-eucalyptus':
     case 'invitation-suite':
     case 'modern-desk':
+    case 'minimal-travertine':
+    case 'classic-black-tie':
       return {
         maxWRatio: 0.48,
         maxHRatio: 0.64,
         offsetXRatio: 0.015,
         offsetYRatio: -0.01,
         shadowPad: 12,
-        shadowBlur: 20,
-        shadowAlpha: 0.08,
-        shadowOffsetX: 2,
-        shadowOffsetY: 4,
+        shadowBlur: 8,
+        shadowAlpha: 0.28,
+        shadowOffsetX: 12,
+        shadowOffsetY: 12,
       }
     case 'golden-plate':
     case 'save-the-date-satin':
     case 'blush-silk':
+    case 'vintage-silk':
+    case 'earthy-terracotta':
       return {
         maxWRatio: 0.44,
         maxHRatio: 0.6,
         offsetXRatio: 0.02,
         offsetYRatio: -0.005,
         shadowPad: 11,
-        shadowBlur: 20,
-        shadowAlpha: 0.075,
-        shadowOffsetX: 2,
-        shadowOffsetY: 4,
+        shadowBlur: 8,
+        shadowAlpha: 0.28,
+        shadowOffsetX: 12,
+        shadowOffsetY: 12,
       }
     default:
       return {
@@ -341,10 +509,10 @@ function getMockupPlacement(scenePreset?: MockupScenePreset) {
         offsetXRatio: 0,
         offsetYRatio: -0.005,
         shadowPad: 12,
-        shadowBlur: 20,
-        shadowAlpha: 0.08,
-        shadowOffsetX: 2,
-        shadowOffsetY: 4,
+        shadowBlur: 8,
+        shadowAlpha: 0.28,
+        shadowOffsetX: 12,
+        shadowOffsetY: 12,
       }
   }
 }

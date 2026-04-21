@@ -5,12 +5,22 @@ type FalImage = {
   content_type?: string
 }
 
+const FAL_BACKGROUND_TRIGGER_SUFFIX =
+  'shot on Phase One IQ4, 100mm macro lens, f/8, cinematic lighting, ultra-realistic, 8k resolution, highly detailed texture, neutral aesthetic.'
+
+function buildFalBackgroundPrompt(prompt: string) {
+  const normalizedPrompt = prompt.trim().replace(/[,\s.]+$/, '')
+  return `${normalizedPrompt}, ${FAL_BACKGROUND_TRIGGER_SUFFIX}`
+}
+
 export async function generateSceneBackground(prompt: string): Promise<{ buffer: Buffer; content_type: string }> {
+  const finalPromptForFal = buildFalBackgroundPrompt(prompt)
+
   const response = await fetchFal(`${FAL_ENDPOINT}/${FAL_MODELS.schnell}`, {
     method: 'POST',
     headers: getFalHeaders(),
     body: JSON.stringify({
-      prompt,
+      prompt: finalPromptForFal,
       image_size: { width: 1024, height: 768 },
       num_inference_steps: 4,
       num_images: 1,

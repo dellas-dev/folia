@@ -341,6 +341,65 @@ Output ONLY the final prompt text, nothing else.
 `
 
 // ─────────────────────────────────────────────────────────────────────
+// PRESET SCENE MAPPING — Locked env/decor/light per scene preset
+// Used by analyzeDesignForBackground to produce tight, art-directed prompts
+// instead of letting Groq free-style the scene vocabulary.
+// ─────────────────────────────────────────────────────────────────────
+type PresetSceneData = { env: string; decor: string; light: string }
+
+const PRESET_MAPPING: Record<string, PresetSceneData> = {
+  'organic-eucalyptus': {
+    env: 'a light-filled garden table with soft wrinkled linen',
+    decor: 'eucalyptus sprigs and white rose petals scattered around',
+    light: 'dappled sunlight through tree leaves (gobo shadows)',
+  },
+  'minimal-travertine': {
+    env: 'a clean minimalist travertine stone slab',
+    decor: 'a single modern glass vase with a green leaf branch',
+    light: 'sharp architectural shadows, bright high-contrast morning sun',
+  },
+  'vintage-silk': {
+    env: 'luxurious champagne-colored ruffled silk fabric',
+    decor: 'vintage brass wax seal, ivory pearls, and a delicate ribbon',
+    light: 'soft diffused window light, ethereal glow',
+  },
+  'earthy-terracotta': {
+    env: 'aged terracotta tiles with a warm sun-baked patina',
+    decor: 'dried rose petals, dried herb sprigs, and a small rustic clay bowl',
+    light: 'warm raking afternoon sunlight casting long organic shadows',
+  },
+  'classic-black-tie': {
+    env: 'rich dark navy velvet fabric draped on a polished surface',
+    decor: 'gold fountain pen, champagne coupe glass, and a subtle ink mark accent',
+    light: 'dramatic moody side lighting, deep shadows, single narrow spotlight',
+  },
+}
+
+// Builds a Groq userMessage that injects locked scene vocabulary from PRESET_MAPPING,
+// ensuring Groq cannot drift into generic descriptions.
+function buildPresetSceneMessage(
+  preset: PresetSceneData,
+  sceneLabel: string,
+  customPrompt?: string
+): string {
+  return `Analyze this invitation design and produce a premium wedding stationery mockup scene prompt.
+
+LOCKED SCENE CONSTRAINTS — You MUST use exactly this vocabulary:
+- Environment: "${preset.env}"
+- Decorators: "${preset.decor}"
+- Lighting: "${preset.light}"
+- Scene label: "${sceneLabel}"
+
+The final prompt must:
+- Place decorators at the outer edges only — keep a clear empty central area for invitation placement
+- Use Flatlay or Perspective composition
+- Keep the color palette complementary to the invitation's dominant colors
+- Include tactile texture language (linen grain, stone texture, silk drape, etc.)
+- Be 60–90 words, no conversational text, output only the final image-generator prompt
+${customPrompt ? `\nOptional user detail (apply only if it improves the scene without adding clutter): "${customPrompt}"` : ''}`
+}
+
+// ─────────────────────────────────────────────────────────────────────
 // STYLE CONTEXT — Technical style hints appended to user message
 // ─────────────────────────────────────────────────────────────────────
 const STYLE_CONTEXT: Record<string, string> = {
@@ -663,7 +722,7 @@ export async function analyzeDesignForBackground(
 Your job is to analyze a user's invitation design and describe a matching physical environment for a professional photoshoot.
 
 STRICT VISUAL GUIDELINES:
-1. LIGHTING: Always specify "Dappled sunlight", "Gobo shadows", or "Soft morning light through a window". This is non-negotiable for a premium look.
+1. LIGHTING: Always specify light coming from the top-left — use "Dappled sunlight from top-left", "Gobo shadows from top-left", or "Soft morning light through a window from the top-left". This is non-negotiable for a premium look.
 2. COMPOSITION: Describe a "Flatlay" or "Perspective" view. Demand a "clear, empty central area" for the invitation to be placed later.
 3. TEXTURES: Use words like "Fine-grained paper texture", "Wrinkled organic linen", "Travertine stone", or "Raw silk fabric".
 4. DECORATORS: Suggest 2-3 realistic elements based on the design's vibe (e.g., "Eucalyptus sprigs", "Dried white rose petals", "Vintage wax seal stamp", "Gold minimalist scissors").
@@ -672,7 +731,14 @@ STRICT VISUAL GUIDELINES:
 OUTPUT FORMAT:
 Provide ONLY the final prompt for the image generator (Flux/Fal.ai). No conversational text.`
 
-  const userMsg = options?.scenePrompt
+  // Prefer locked PRESET_MAPPING data over free-form scenePrompt text when available.
+  // This prevents Groq from drifting into generic vocabulary and ensures each
+  // preset produces a distinct, art-directed scene.
+  const mappedPreset = options?.sceneLabel ? PRESET_MAPPING[options.sceneLabel] : undefined
+
+  const userMsg = mappedPreset
+    ? buildPresetSceneMessage(mappedPreset, options!.sceneLabel!, options?.customPrompt)
+    : options?.scenePrompt
     ? `Analyze this invitation design and produce a premium wedding stationery mockup scene prompt.
 Use this scene direction as a hard constraint for surface, mood, and prop vocabulary: "${options.scenePrompt}".
 Scene label: "${options.sceneLabel ?? 'preset scene'}".

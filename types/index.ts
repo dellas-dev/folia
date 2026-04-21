@@ -30,6 +30,11 @@ export type MockupScenePreset =
   | 'wedding-program-tall'
   | 'water-bottle-flatlay'
   | 'belly-band-suite'
+  | 'organic-eucalyptus'
+  | 'minimal-travertine'
+  | 'vintage-silk'
+  | 'earthy-terracotta'
+  | 'classic-black-tie'
 
 export interface GenerationResult {
   r2_key: string
@@ -292,6 +297,51 @@ export const MOCKUP_SCENE_OPTIONS: MockupSceneOption[] = [
     description: 'Stacked invitation suite with belly band on rattan surface, warm tones.',
     prompt:
       'Display this design as a belly band wrapping around a stacked wedding invitation suite, placed on a natural rattan woven surface with warm amber glass vessels beside it, warm-toned soft natural light, intimate close-up styling, realistic Etsy listing mockup',
+  },
+  {
+    id: 'organic-eucalyptus',
+    label: 'Eucalyptus Garden',
+    emoji: '🌿',
+    accessLevel: 'all',
+    description: 'Fresh eucalyptus branches, white roses, and natural linen for an airy garden feel.',
+    prompt:
+      'Place this invitation card flat on a soft white linen surface, fresh eucalyptus branches and open white roses loosely arranged around it, crisp natural daylight from above, airy and organic editorial styling, top-down product photography, sharp focus, realistic Etsy listing mockup',
+  },
+  {
+    id: 'minimal-travertine',
+    label: 'Modern Stone',
+    emoji: '🪨',
+    accessLevel: 'all',
+    description: 'Architectural travertine stone surface with dramatic sunlight and clean shadows.',
+    prompt:
+      'Place this invitation card flat on a smooth natural travertine stone surface, harsh direct sunlight casting a bold geometric shadow, minimal and architectural styling with no other props, top-down photography, ultra clean and modern aesthetic, realistic Etsy listing mockup',
+  },
+  {
+    id: 'vintage-silk',
+    label: 'Romantic Silk',
+    emoji: '🕯️',
+    accessLevel: 'pro',
+    description: 'Folded ivory silk fabric, crimson wax seal, and pearl details for luxurious elegance.',
+    prompt:
+      'Place this invitation card on softly draped ivory silk fabric with a deep red wax seal and scattered pearl beads beside it, warm diffused candlelight glow, romantic and luxurious editorial styling, close-up overhead photography, realistic Etsy listing mockup',
+  },
+  {
+    id: 'earthy-terracotta',
+    label: 'Earthy Warmth',
+    emoji: '🏺',
+    accessLevel: 'pro',
+    description: 'Terracotta tiles, dried petals, and warm golden sunlight for a rustic organic mood.',
+    prompt:
+      'Place this invitation card flat on aged terracotta tile, dried rose petals and dried herb sprigs scattered around it, warm golden afternoon sunlight raking across the surface, warm and rustic organic styling, top-down editorial photography, realistic Etsy listing mockup',
+  },
+  {
+    id: 'classic-black-tie',
+    label: 'Black Tie',
+    emoji: '🖋️',
+    accessLevel: 'pro',
+    description: 'Dark velvet surface, gold fountain pen, and champagne glass for a sophisticated look.',
+    prompt:
+      'Place this invitation card on rich dark navy velvet fabric, a gold fountain pen and a champagne coupe glass elegantly positioned beside it, dramatic moody side lighting with deep shadows, sophisticated black-tie event styling, top-down close-up photography, realistic Etsy listing mockup',
   },
 ]
 
