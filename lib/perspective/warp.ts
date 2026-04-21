@@ -255,7 +255,7 @@ export async function compositeDesignCentered(
   for (let i = 0; i < localSample.length; i += 3) {
     rSum += localSample[i]; gSum += localSample[i + 1]; bSum += localSample[i + 2]
   }
-  const BG_BLEND = 0.15  // 15% scene color, 85% white
+  const BG_BLEND = 0.42  // 42% scene color, 58% white
   const localPaperColor = {
     r: Math.round((1 - BG_BLEND) * 255 + BG_BLEND * (rSum / localPixels)),
     g: Math.round((1 - BG_BLEND) * 255 + BG_BLEND * (gSum / localPixels)),
@@ -333,7 +333,7 @@ export async function compositeDesignCentered(
   const [contactShadow, castShadow] = await Promise.all([
     sharp(Buffer.from(
       `<svg width="${dW + CONTACT_PAD * 2}" height="${dH + CONTACT_PAD * 2}" xmlns="http://www.w3.org/2000/svg">` +
-      `<rect x="${CONTACT_PAD}" y="${CONTACT_PAD}" width="${dW}" height="${dH}" fill="rgba(25,18,12,0.42)"/>` +
+      `<rect x="${CONTACT_PAD}" y="${CONTACT_PAD}" width="${dW}" height="${dH}" fill="rgba(28,20,14,0.22)"/>` +
       `</svg>`
     ))
       .blur(normalizeInternalBlurSigma(CONTACT_BLUR))
@@ -341,7 +341,7 @@ export async function compositeDesignCentered(
       .toBuffer(),
     sharp(Buffer.from(
       `<svg width="${dW + shadowOffsetX + CAST_PAD}" height="${dH + shadowOffsetY + CAST_PAD}" xmlns="http://www.w3.org/2000/svg">` +
-      `<rect x="${shadowOffsetX}" y="${shadowOffsetY}" width="${dW}" height="${dH}" fill="rgba(20,14,8,0.26)"/>` +
+      `<rect x="${shadowOffsetX}" y="${shadowOffsetY}" width="${dW}" height="${dH}" fill="rgba(22,16,10,0.13)"/>` +
       `</svg>`
     ))
       .blur(normalizeInternalBlurSigma(CAST_BLUR))
@@ -483,7 +483,7 @@ export async function compositeDesignCentered(
 
 function getCardTint(colorTemp: 'warm' | 'cool' | 'neutral') {
   switch (colorTemp) {
-    case 'warm':  return { r: 253, g: 247, b: 232 }
+    case 'warm':  return { r: 250, g: 239, b: 218 }
     case 'cool':  return { r: 242, g: 246, b: 252 }
     default:      return { r: 250, g: 249, b: 246 }
   }
@@ -499,7 +499,7 @@ type Matrix3 = [[number,number,number],[number,number,number],[number,number,num
 
 function getColorTempMatrix(colorTemp: 'warm' | 'cool' | 'neutral'): Matrix3 {
   switch (colorTemp) {
-    case 'warm': return [[1.05, 0, 0], [0, 1.02, 0], [0, 0, 0.95]]
+    case 'warm': return [[1.08, 0, 0], [0, 1.03, 0], [0, 0, 0.91]]
     case 'cool': return [[0.97, 0, 0], [0, 1.00, 0], [0, 0, 1.04]]
     default:     return [[1.00, 0, 0], [0, 1.00, 0], [0, 0, 1.00]]
   }
