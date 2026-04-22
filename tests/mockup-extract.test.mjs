@@ -84,3 +84,29 @@ test('enhanceExtractReference creates a materially larger export from a tiny sou
 
   assert.ok(darkLine.r + darkLine.g + darkLine.b < cardFill.r + cardFill.g + cardFill.b - 240, `expected readable contrast after upscale, got dark=${JSON.stringify(darkLine)} fill=${JSON.stringify(cardFill)}`)
 })
+
+test('enhanceExtractReference boosts card-region edge contrast in a blurred reference scene', async () => {
+  const scene = await sharp(Buffer.from(
+    `<svg width="220" height="220" xmlns="http://www.w3.org/2000/svg">` +
+    `<rect width="220" height="220" fill="#6b6f59"/>` +
+    `<rect x="58" y="42" width="102" height="142" fill="#fbfbf8" stroke="#8a735c" stroke-width="6"/>` +
+    `<rect x="78" y="82" width="62" height="10" fill="#121212"/>` +
+    `<rect x="78" y="100" width="48" height="6" fill="#505050"/>` +
+    `</svg>`
+  ))
+    .blur(1.35)
+    .png()
+    .toBuffer()
+
+  const enhanced = await enhanceExtractReference(scene, 2048)
+  const outside = await pixelAt(enhanced.buffer, Math.round(enhanced.width * 0.2), Math.round(enhanced.height * 0.45))
+  const inside = await pixelAt(enhanced.buffer, Math.round(enhanced.width * 0.34), Math.round(enhanced.height * 0.45))
+  const text = await pixelAt(enhanced.buffer, Math.round(enhanced.width * 0.5), Math.round(enhanced.height * 0.39))
+
+  const outsideBrightness = outside.r + outside.g + outside.b
+  const insideBrightness = inside.r + inside.g + inside.b
+  const textBrightness = text.r + text.g + text.b
+
+  assert.ok(insideBrightness > outsideBrightness + 180, `expected card area to stay clearly separated from background, got inside=${JSON.stringify(inside)} outside=${JSON.stringify(outside)}`)
+  assert.ok(textBrightness < insideBrightness - 280, `expected text/detail to remain visibly darker than the card fill, got text=${JSON.stringify(text)} inside=${JSON.stringify(inside)}`)
+})
