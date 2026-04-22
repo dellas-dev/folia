@@ -118,6 +118,66 @@ test('compositeSoftenedOverlay preserves readable dark content and avoids white 
   assert.ok(outsidePixel.r < 210 && outsidePixel.g < 210 && outsidePixel.b < 210, `expected no white bloom outside the card, got ${JSON.stringify(outsidePixel)}`)
 })
 
+test('compositeSoftenedOverlay keeps the design layer sharp instead of softening the artwork alpha', async () => {
+  const whiteFill = await sharp({
+    create: {
+      width: 200,
+      height: 140,
+      channels: 4,
+      background: { r: 0, g: 0, b: 0, alpha: 0 },
+    },
+  })
+    .composite([{
+      input: Buffer.from(
+        `<svg width="200" height="140" xmlns="http://www.w3.org/2000/svg">` +
+        `<rect x="30" y="20" width="100" height="70" fill="white"/>` +
+        `</svg>`
+      ),
+      blend: 'over',
+    }])
+    .png()
+    .toBuffer()
+
+  const design = await sharp({
+    create: {
+      width: 200,
+      height: 140,
+      channels: 4,
+      background: { r: 0, g: 0, b: 0, alpha: 0 },
+    },
+  })
+    .composite([{
+      input: Buffer.from(
+        `<svg width="200" height="140" xmlns="http://www.w3.org/2000/svg">` +
+        `<rect x="30" y="20" width="100" height="70" fill="white"/>` +
+        `<rect x="62" y="46" width="36" height="8" fill="#111111"/>` +
+        `</svg>`
+      ),
+      blend: 'over',
+    }])
+    .png()
+    .toBuffer()
+
+  const reference = await sharp({
+    create: {
+      width: 200,
+      height: 140,
+      channels: 3,
+      background: { r: 214, g: 214, b: 214 },
+    },
+  }).png().toBuffer()
+
+  const composited = await compositeSoftenedOverlay(
+    reference,
+    whiteFill,
+    design,
+    { designBlendMode: 'over', edgeSoftnessSigma: 0.45 }
+  )
+
+  const detailPixel = await pixelAt(composited, 80, 50)
+  assert.ok(detailPixel.r < 30 && detailPixel.g < 30 && detailPixel.b < 30, `expected artwork detail to stay crisp/dark, got ${JSON.stringify(detailPixel)}`)
+})
+
 test('extractRectifiedSurfaceRuntime turns a detected skewed sign into a large planar extract', async () => {
   const corners = {
     topLeft: { x: 70, y: 25 },

@@ -77,10 +77,7 @@ export async function compositeSoftenedOverlay(
   }
 ) {
   const softSigma = options?.edgeSoftnessSigma ?? 0.45
-  const [softWhiteFill, softDesign] = await Promise.all([
-    applySoftEdgeMask(whiteFillBuffer, softSigma),
-    applySoftEdgeMask(designBuffer, softSigma),
-  ])
+  const softWhiteFill = await applySoftEdgeMask(whiteFillBuffer, softSigma)
 
   let pipeline = sharp(referenceBuffer)
   if (options?.resizeToFit) {
@@ -93,7 +90,8 @@ export async function compositeSoftenedOverlay(
   return pipeline
     .composite([
       { input: softWhiteFill, blend: 'over' },
-      { input: softDesign, blend: options?.designBlendMode ?? 'over' },
+      // Keep the invitation artwork untouched so small text does not get softened.
+      { input: designBuffer, blend: options?.designBlendMode ?? 'over' },
     ])
     .png()
     .toBuffer()
