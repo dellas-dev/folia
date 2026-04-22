@@ -694,8 +694,7 @@ export function MockupForm({ tier, startingCredits, initialInvitationKey, initia
                 </p>
                 <p className="text-[11px] leading-5" style={{ color: '#70787a' }}>
                   Upload foto mockup dari Etsy, Pinterest, atau foto asli.
-                  AI akan menghapus desain yang ada dan menggantinya dengan
-                  kertas putih kosong siap di-edit di Photoshop.
+                  Folia akan mengekspor ulang referensi menjadi file baru yang lebih besar dan lebih tajam.
                 </p>
 
                 <label
@@ -727,7 +726,7 @@ export function MockupForm({ tier, startingCredits, initialInvitationKey, initia
                     <img src={extractPreviewUrl} alt="Reference preview" className="h-12 w-auto rounded-lg object-contain" />
                     <div className="min-w-0 flex-1">
                       <p className="text-xs font-semibold" style={{ color: '#404849' }}>Foto referensi siap</p>
-                      <p className="mt-0.5 text-[10px]" style={{ color: '#70787a' }}>AI akan mendeteksi area kertas otomatis</p>
+                      <p className="mt-0.5 text-[10px]" style={{ color: '#70787a' }}>Folia akan membuat file extract baru dengan kualitas lebih tinggi</p>
                     </div>
                     <button
                       type="button"
@@ -747,7 +746,7 @@ export function MockupForm({ tier, startingCredits, initialInvitationKey, initia
                   style={{ backgroundColor: '#f4f3f3', color: '#37656b', border: '1.5px solid rgba(55,101,107,0.3)' }}
                 >
                   {extracting
-                    ? <><LoaderCircle className="size-4 animate-spin" />AI sedang mendeteksi area kertas...</>
+                    ? <><LoaderCircle className="size-4 animate-spin" />Folia sedang menyiapkan file extract...</>
                     : <><ScanSearch className="size-4" />Ekstrak Template dari Referensi</>
                   }
                 </button>

@@ -49,3 +49,38 @@ test('enhanceExtractReference preserves strong center detail instead of softenin
   assert.ok(center.r < 30 && center.g < 30 && center.b < 30, `expected dark readable center detail, got ${JSON.stringify(center)}`)
   assert.ok(outer.r > 180 && outer.g > 180 && outer.b > 180, `expected bright preserved paper tone, got ${JSON.stringify(outer)}`)
 })
+
+test('enhanceExtractReference creates a materially larger export from a tiny source image', async () => {
+  const source = await sharp({
+    create: {
+      width: 120,
+      height: 120,
+      channels: 3,
+      background: { r: 242, g: 239, b: 235 },
+    },
+  })
+    .composite([
+      {
+        input: Buffer.from(
+          `<svg width="120" height="120" xmlns="http://www.w3.org/2000/svg">` +
+          `<rect x="18" y="18" width="84" height="84" fill="#ffffff" stroke="#2c2c2c" stroke-width="2"/>` +
+          `<rect x="34" y="48" width="52" height="10" fill="#111111"/>` +
+          `<rect x="34" y="66" width="42" height="6" fill="#3f3f3f"/>` +
+          `</svg>`
+        ),
+        top: 0,
+        left: 0,
+      },
+    ])
+    .png()
+    .toBuffer()
+
+  const enhanced = await enhanceExtractReference(source, 2048)
+
+  assert.ok(enhanced.buffer.length > source.length * 8, `expected much larger output artifact, got source=${source.length} enhanced=${enhanced.buffer.length}`)
+
+  const darkLine = await pixelAt(enhanced.buffer, Math.round(enhanced.width * 0.5), Math.round(enhanced.height * 0.43))
+  const cardFill = await pixelAt(enhanced.buffer, Math.round(enhanced.width * 0.5), Math.round(enhanced.height * 0.33))
+
+  assert.ok(darkLine.r + darkLine.g + darkLine.b < cardFill.r + cardFill.g + cardFill.b - 240, `expected readable contrast after upscale, got dark=${JSON.stringify(darkLine)} fill=${JSON.stringify(cardFill)}`)
+})

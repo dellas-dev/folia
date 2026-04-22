@@ -102,6 +102,36 @@ function clampExtractLongEdge(value: number) {
   return Math.max(1024, Math.min(4096, Math.round(value)))
 }
 
+function getExtractScaleFactor(width: number, height: number, targetLongEdge: number) {
+  const sourceLongEdge = Math.max(width, height)
+  if (sourceLongEdge <= 0) return 1
+  return targetLongEdge / sourceLongEdge
+}
+
+function getExtractSharpenConfig(scaleFactor: number) {
+  if (scaleFactor >= 6) {
+    return { sigma: 1.35, m1: 1.7, m2: 3, x1: 2, y2: 16, y3: 24 }
+  }
+
+  if (scaleFactor >= 3) {
+    return { sigma: 1.22, m1: 1.5, m2: 2.7, x1: 2, y2: 14, y3: 22 }
+  }
+
+  return { sigma: 1.1, m1: 1.3, m2: 2.4, x1: 2, y2: 10, y3: 18 }
+}
+
+function getExtractLinearAdjustments(scaleFactor: number) {
+  if (scaleFactor >= 6) {
+    return { a: 1.08, b: -6 }
+  }
+
+  if (scaleFactor >= 3) {
+    return { a: 1.05, b: -4 }
+  }
+
+  return { a: 1.02, b: -2 }
+}
+
 export async function enhanceExtractReference(
   referenceBuffer: Buffer,
   targetLongEdge: number
@@ -120,9 +150,13 @@ export async function enhanceExtractReference(
 
   const longEdge = clampExtractLongEdge(targetLongEdge)
   const landscape = width >= height
+  const scaleFactor = getExtractScaleFactor(width, height, longEdge)
+  const sharpenConfig = getExtractSharpenConfig(scaleFactor)
+  const linearAdjustments = getExtractLinearAdjustments(scaleFactor)
 
   const { data, info } = await sharp(referenceBuffer)
     .rotate()
+    .gamma(1.9)
     .resize({
       width: landscape ? longEdge : undefined,
       height: landscape ? undefined : longEdge,
@@ -130,8 +164,11 @@ export async function enhanceExtractReference(
       withoutEnlargement: false,
       kernel: sharp.kernel.lanczos3,
     })
-    .sharpen({ sigma: 1.15, m1: 1.3, m2: 2.4, x1: 2, y2: 10, y3: 18 })
-    .png({ compressionLevel: 9 })
+    .gamma()
+    .linear(linearAdjustments.a, linearAdjustments.b)
+    .modulate({ brightness: 1.01, saturation: scaleFactor >= 4 ? 1.02 : 1.01 })
+    .sharpen(sharpenConfig)
+    .png({ compressionLevel: 9, adaptiveFiltering: true })
     .toBuffer({ resolveWithObject: true })
 
   return {
