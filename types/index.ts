@@ -61,6 +61,31 @@ export interface MockupSceneOption {
   prompt: string
 }
 
+function tightenScenePrompt(prompt: string) {
+  const compactBase = prompt
+    .replace(/realistic Etsy listing mockup/gi, '')
+    .replace(/realistic product photography/gi, '')
+    .replace(/sharp focus/gi, '')
+    .replace(/highly detailed/gi, '')
+    .replace(/completely surrounded by/gi, 'with')
+    .replace(/surrounded by/gi, 'with')
+    .replace(/\s+/g, ' ')
+    .split(',')
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .slice(0, 4)
+    .join(', ')
+
+  return [
+    compactBase,
+    'clean central card area',
+    'high local contrast around the card area',
+    'no hotspot highlights in the center',
+    'maximum two props placed at outer edges only',
+    'premium realistic stationery mockup',
+  ].join(', ')
+}
+
 export const STYLE_OPTIONS: StyleOption[] = [
   {
     id: 'watercolor',
@@ -108,7 +133,7 @@ export const STYLE_MODIFIERS: Record<IllustrationStyle, string> = Object.fromEnt
   STYLE_OPTIONS.map((s) => [s.id, s.modifier])
 ) as Record<IllustrationStyle, string>
 
-export const MOCKUP_SCENE_OPTIONS: MockupSceneOption[] = [
+const RAW_MOCKUP_SCENE_OPTIONS: MockupSceneOption[] = [
   {
     id: 'marble-eucalyptus',
     label: 'Marble & Eucalyptus',
@@ -344,6 +369,11 @@ export const MOCKUP_SCENE_OPTIONS: MockupSceneOption[] = [
       'Place this invitation card on rich dark navy velvet fabric, a gold fountain pen and a champagne coupe glass elegantly positioned beside it, dramatic moody side lighting with deep shadows, sophisticated black-tie event styling, top-down close-up photography, realistic Etsy listing mockup',
   },
 ]
+
+export const MOCKUP_SCENE_OPTIONS: MockupSceneOption[] = RAW_MOCKUP_SCENE_OPTIONS.map((scene) => ({
+  ...scene,
+  prompt: tightenScenePrompt(scene.prompt),
+}))
 
 export const MOCKUP_SCENE_PROMPTS: Record<MockupScenePreset, string> = Object.fromEntries(
   MOCKUP_SCENE_OPTIONS.map((scene) => [scene.id, scene.prompt])

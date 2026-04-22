@@ -1,6 +1,8 @@
 import { getCurrentProfile } from '@/lib/clerk/auth'
+import { enhanceExtractReference } from '@/lib/mockup/compositing'
+import { buildVisualValidationError } from '@/lib/mockup/request'
 import { getPlanForTier } from '@/lib/plans'
-import { buildGenerationR2Key, getSignedR2Url, isOwnedR2Key } from '@/lib/r2/client'
+import { buildGenerationR2Key, getSignedR2Url, isOwnedR2Key, uploadToR2 } from '@/lib/r2/client'
 import { createServerClient } from '@/lib/supabase/server'
 import { enforceGenerationRateLimit } from '@/lib/upstash/ratelimit'
 import type { Database } from '@/types/database.types'
@@ -44,19 +46,35 @@ export async function POST(request: Request) {
     }
 
     if (!body.reference_r2_key) {
-      return Response.json({ error: 'reference_r2_key is required' }, { status: 422 })
+      return Response.json(
+        buildVisualValidationError([{ field: 'reference_r2_key', message: 'reference_r2_key is required.' }], 'Invalid extract payload.'),
+        { status: 422 }
+      )
     }
 
-    if (!isOwnedR2Key(body.reference_r2_key, user.id)) {
+    const referenceR2Key = body.reference_r2_key
+
+    if (!isOwnedR2Key(referenceR2Key, user.id)) {
       return Response.json({ error: 'Forbidden' }, { status: 403 })
     }
 
     const plan = getPlanForTier(profile.tier)
     const generationStartedAt = Date.now()
 
-    // ── Generate signed URL for the reference image as-is ────────────────
-    const signedUrl = await getSignedR2Url(body.reference_r2_key, 3600)
-    const r2Key = body.reference_r2_key
+    // ── Fetch reference, upscale, and sharpen into a premium extract output ──
+    const referenceSignedUrl = await getSignedR2Url(referenceR2Key, 300)
+    const referenceRes = await fetch(referenceSignedUrl)
+    if (!referenceRes.ok) {
+      throw new Error(`Failed to fetch reference image: ${referenceRes.status} ${referenceRes.statusText}`)
+    }
+
+    const referenceBuffer = Buffer.from(await referenceRes.arrayBuffer())
+    const enhancedReference = await enhanceExtractReference(referenceBuffer, plan.resolution)
+
+    const generationId = crypto.randomUUID()
+    const r2Key = buildGenerationR2Key(user.id, generationId, 1, 'png')
+    await uploadToR2(r2Key, enhancedReference.buffer, 'image/png')
+    const signedUrl = await getSignedR2Url(r2Key, 3600)
 
     // ── Log generation + deduct credit ────────────────────────────────────
     const supabase = createServerClient()
@@ -69,7 +87,7 @@ export async function POST(request: Request) {
       style: null,
       prompt_raw: null,
       prompt_enhanced: null,
-      reference_image_r2_key: body.reference_r2_key,
+      reference_image_r2_key: referenceR2Key,
       invitation_r2_key: null,
       scene_preset: null,
       custom_scene_prompt: null,
@@ -78,7 +96,7 @@ export async function POST(request: Request) {
       model_used: 'extract-template-v1',
       gemini_used: false,
       generation_time_ms: Date.now() - generationStartedAt,
-      resolution: plan.resolution,
+      resolution: Math.max(enhancedReference.width, enhancedReference.height),
       is_public: false,
       public_approved: true,
       credits_spent: 1,
@@ -96,13 +114,26 @@ export async function POST(request: Request) {
     if (creditsError) throw creditsError
 
     return Response.json({
-      generation_id: crypto.randomUUID(),
+      generation_id: generationId,
       result: { r2_key: r2Key, signed_url: signedUrl },
       credits_remaining: creditsRemaining,
     })
 
   } catch (error) {
     console.error('[mockup/extract] ERROR:', error)
+
+    if (error instanceof Error && /reference image could not be processed|unsupported image format|input buffer/i.test(error.message)) {
+      return Response.json(
+        buildVisualValidationError([
+          {
+            field: 'reference_r2_key',
+            message: 'The uploaded reference image could not be processed. Please try a sharper JPG, PNG, or WEBP file.',
+          },
+        ], 'Invalid extract payload.'),
+        { status: 422 }
+      )
+    }
+
     const message = error instanceof Error ? error.message : 'Extract Template failed. Please try again.'
     return Response.json({ error: message }, { status: 500 })
   }

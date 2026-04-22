@@ -350,7 +350,7 @@ type PresetSceneData = { env: string; decor: string; light: string }
 const PRESET_MAPPING: Record<string, PresetSceneData> = {
   'organic-eucalyptus': {
     env: 'a light-filled garden table with soft wrinkled linen',
-    decor: 'eucalyptus sprigs and white rose petals scattered around',
+    decor: 'eucalyptus sprigs and white rose petals at the outer edges',
     light: 'dappled sunlight through tree leaves (gobo shadows)',
   },
   'minimal-travertine': {
@@ -360,17 +360,17 @@ const PRESET_MAPPING: Record<string, PresetSceneData> = {
   },
   'vintage-silk': {
     env: 'luxurious champagne-colored ruffled silk fabric',
-    decor: 'vintage brass wax seal, ivory pearls, and a delicate ribbon',
+    decor: 'a vintage brass wax seal and a delicate ribbon at the outer edges',
     light: 'soft diffused window light, ethereal glow',
   },
   'earthy-terracotta': {
     env: 'aged terracotta tiles with a warm sun-baked patina',
-    decor: 'dried rose petals, dried herb sprigs, and a small rustic clay bowl',
+    decor: 'dried rose petals and a small rustic clay bowl at the outer edges',
     light: 'warm raking afternoon sunlight casting long organic shadows',
   },
   'classic-black-tie': {
     env: 'rich dark navy velvet fabric draped on a polished surface',
-    decor: 'gold fountain pen, champagne coupe glass, and a subtle ink mark accent',
+    decor: 'a gold fountain pen and a champagne coupe glass at the outer edges',
     light: 'dramatic moody side lighting, deep shadows, single narrow spotlight',
   },
 }
@@ -391,10 +391,13 @@ LOCKED SCENE CONSTRAINTS — You MUST use exactly this vocabulary:
 - Scene label: "${sceneLabel}"
 
 The final prompt must:
-- Place decorators throughout the scene — flowers and elements should come close to and right up against the borders of the card placement zone
+- Keep the center clean and stable for the card
 - Use Flatlay or Perspective composition
 - Keep the color palette complementary to the invitation's dominant colors
 - Include tactile texture language (linen grain, stone texture, silk drape, etc.)
+- Use no more than 1-2 decorators and keep them at the outer edges only
+- Protect readability with high local contrast around the card area
+- Avoid hotspot highlights or washed-out bloom in the center
 - Be 60–90 words, no conversational text, output only the final image-generator prompt
 ${customPrompt ? `\nOptional user detail (apply only if it improves the scene without adding clutter): "${customPrompt}"` : ''}`
 }
@@ -734,10 +737,11 @@ Your job is to analyze a user's invitation design and describe a matching physic
 
 STRICT VISUAL GUIDELINES:
 1. LIGHTING: Always specify light coming from the top-left — use "Dappled sunlight from top-left", "Gobo shadows from top-left", or "Soft morning light through a window from the top-left". This is non-negotiable for a premium look.
-2. COMPOSITION: Describe a "Flatlay" or "Perspective" view. Flowers and decorators should extend close to the center — elements right at the card border edges create natural depth.
+2. COMPOSITION: Describe a "Flatlay" or "Perspective" view. Keep the center clean and stable for the card. Props may touch only the OUTER EDGES of the card zone and must never crowd the center.
 3. TEXTURES: Use words like "Fine-grained paper texture", "Wrinkled organic linen", "Travertine stone", or "Raw silk fabric".
-4. DECORATORS: Suggest 2-3 realistic elements based on the design's vibe (e.g., "Eucalyptus sprigs", "Dried white rose petals", "Vintage wax seal stamp", "Gold minimalist scissors").
+4. DECORATORS: Suggest at most 1-2 realistic edge-only elements based on the design's vibe (e.g., "Eucalyptus sprigs", "Dried white rose petals", "Vintage wax seal stamp", "Gold minimalist scissors").
 5. COLOR PALETTE: Ensure the background colors complement the colors you see in the user's design.
+6. READABILITY: Protect the card area with high local contrast and explicitly avoid washed-out bloom, white hotspot highlights, or blown highlights in the center.
 
 OUTPUT FORMAT:
 Provide ONLY the final prompt for the image generator (Flux/Fal.ai). No conversational text.`
@@ -756,10 +760,11 @@ The invitation card will be composited on top later — do NOT include any card,
 
 Extract from IMAGE 2:
 1. Surface material (marble, wood, linen, velvet, travertine, etc.)
-2. Decorative props present (eucalyptus, flowers, ribbon, candles, etc.) — position them at the OUTER EDGES only
+2. Decorative props present (eucalyptus, flowers, ribbon, candles, etc.) — keep only the strongest 1-2 props and position them at the OUTER EDGES only
 3. Lighting quality and direction
 4. Color temperature and palette
 5. Camera angle (flatlay / slight angle / etc.)
+6. Maintain a clean readable center with high local contrast and no hotspot highlights in the card area
 
 Adjust the color palette to complement the dominant colors from IMAGE 1 (the invitation design).
 
@@ -797,20 +802,22 @@ Use this scene direction as a hard constraint for surface, mood, and prop vocabu
 Scene label: "${options.sceneLabel ?? 'preset scene'}".
 ${options.customPrompt ? `Optional extra detail from user: "${options.customPrompt}". Apply it only if it improves the scene without adding clutter.` : ''}
 The final prompt must:
-- flowers and decorators arranged naturally throughout, some elements placed right at the edges of the card placement zone
+- keep the center clean and readable for the card placement zone
 - use either Flatlay or Perspective composition
 - include one approved lighting cue
 - include tactile premium textures
-- include 2-3 realistic decorators at the outer edges only
+- include maximum 1-2 realistic decorators at the outer edges only
+- protect readability with high local contrast around the card area
+- avoid hotspot highlights or washed-out bloom in the center
 - keep the palette complementary to the invitation artwork
 - return only the final image-generator prompt`
     : options?.customPrompt
       ? `Analyze this invitation design's decorative elements, dominant colors, and overall mood.
 Create a premium wedding stationery mockup scene prompt using this optional extra direction only if it stays refined and uncluttered: "${options.customPrompt}".
-The final prompt must have flowers and decorators arranged close to the card placement zone, use Flatlay or Perspective composition, include one approved lighting cue, mention tactile textures, include 2-3 realistic decorators, keep colors complementary to the design, and return only the final image-generator prompt.`
+The final prompt must keep the center clean for the card, use Flatlay or Perspective composition, include one approved lighting cue, mention tactile textures, include maximum 1-2 realistic decorators at the outer edges only, keep colors complementary to the design, protect readability with high local contrast around the card area, avoid hotspot highlights in the center, and return only the final image-generator prompt.`
       : `Analyze this invitation design's decorative elements, dominant colors, and overall mood.
 Create the most suitable premium wedding stationery mockup scene prompt.
-The final prompt must have flowers and decorators arranged close to the card placement zone, use Flatlay or Perspective composition, include one approved lighting cue, mention tactile textures, include 2-3 realistic decorators, keep colors complementary to the design, and return only the final image-generator prompt.`
+The final prompt must keep the center clean for the card, use Flatlay or Perspective composition, include one approved lighting cue, mention tactile textures, include maximum 1-2 realistic decorators at the outer edges only, keep colors complementary to the design, protect readability with high local contrast around the card area, avoid hotspot highlights in the center, and return only the final image-generator prompt.`
 
   try {
     const raw = await callGroqVision(designBase64, mimeType || 'image/png', userMsg, BACKGROUND_SYSTEM_PROMPT)
@@ -848,8 +855,11 @@ function buildFallbackBackgroundPrompt(options?: {
     return [
       'Flatlay premium wedding stationery photography',
       simplifySceneDirection(rawDirection),
-      'flowers arranged close to and around the card area',
-      'soft morning light through a window',
+      'clean center reserved for the card',
+      'maximum two props at the outer edges only',
+      'soft morning light through a window from the top-left',
+      'high local contrast around the card area',
+      'no hotspot highlights in the center',
       'complementary warm neutral palette',
       'refined editorial product photoshoot',
     ].join(', ')
@@ -858,9 +868,11 @@ function buildFallbackBackgroundPrompt(options?: {
   return [
     'Flatlay premium wedding stationery photography',
     'travertine stone with wrinkled organic linen and fine-grained paper texture',
-    'eucalyptus sprigs, dried white rose petals, and a vintage wax seal stamp arranged close to the card area',
-    'soft morning light through a window',
+    'eucalyptus sprigs and a wax seal at the outer edges only',
+    'soft morning light through a window from the top-left',
     'clear empty central area for invitation placement',
+    'high local contrast around the card area',
+    'no hotspot highlights in the center',
     'warm neutral palette that complements the invitation artwork',
     'refined editorial product photoshoot',
   ].join(', ')
@@ -884,8 +896,8 @@ function simplifySceneDirection(input: string) {
     .replace(/top-down flat lay perspective/gi, 'Flatlay view')
     .replace(/top-down flatlay photography/gi, 'Flatlay view')
     .replace(/flat lay/gi, 'Flatlay')
-    .replace(/negative space in center/gi, 'flowers arranged close to and around the card area')
-    .replace(/negative space/gi, 'flowers arranged close to and around the card area')
+    .replace(/negative space in center/gi, 'clean central card area')
+    .replace(/negative space/gi, 'clean central card area')
     .replace(/\s+/g, ' ')
     .replace(/\s+,/g, ',')
     .replace(/,+/g, ',')

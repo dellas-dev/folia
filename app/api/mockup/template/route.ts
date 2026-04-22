@@ -1,4 +1,5 @@
 import { getCurrentProfile } from '@/lib/clerk/auth'
+import { buildVisualValidationError } from '@/lib/mockup/request'
 import { cornersToPixels, getTemplateById } from '@/lib/mockup-templates'
 import { compositeOverlay, prepareReference } from '@/lib/perspective/warp'
 import { buildGenerationR2Key, getSignedR2Url, isOwnedR2Key, uploadToR2 } from '@/lib/r2/client'
@@ -19,26 +20,46 @@ export async function POST(request: Request) {
     return Response.json({ error: 'Not enough credits. Please top up or subscribe.' }, { status: 403 })
   }
 
-  const body = await request.json() as { design_r2_key?: string; template_id?: string }
-
-  if (!body.design_r2_key || !body.template_id) {
-    return Response.json({ error: 'design_r2_key and template_id are required' }, { status: 422 })
+  let body: { design_r2_key?: string; template_id?: string }
+  try {
+    body = await request.json() as { design_r2_key?: string; template_id?: string }
+  } catch {
+    return Response.json({ error: 'Request body must be valid JSON.' }, { status: 400 })
   }
 
-  if (!isOwnedR2Key(body.design_r2_key, user.id)) {
+  const issues = [
+    !body.design_r2_key ? { field: 'design_r2_key', message: 'design_r2_key is required.' } : null,
+    !body.template_id ? { field: 'template_id', message: 'template_id is required.' } : null,
+  ].filter((issue): issue is { field: string; message: string } => issue !== null)
+
+  if (issues.length > 0) {
+    return Response.json(buildVisualValidationError(issues, 'Invalid scene template payload.'), { status: 422 })
+  }
+
+  const designR2Key = body.design_r2_key
+  const templateId = body.template_id
+
+  if (!designR2Key || !templateId) {
+    return Response.json(buildVisualValidationError([{ field: 'payload', message: 'Missing required scene template parameters.' }], 'Invalid scene template payload.'), { status: 422 })
+  }
+
+  if (!isOwnedR2Key(designR2Key, user.id)) {
     return Response.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  const template = getTemplateById(body.template_id)
+  const template = getTemplateById(templateId)
   if (!template) {
-    return Response.json({ error: 'Template not found.' }, { status: 404 })
+    return Response.json(
+      buildVisualValidationError([{ field: 'template_id', message: 'Unknown template_id.' }], 'Invalid scene template payload.'),
+      { status: 422 }
+    )
   }
 
   try {
     const startedAt = Date.now()
 
     // 1. Fetch design from R2 and template image from its hosted URL in parallel
-    const designSignedUrl = await getSignedR2Url(body.design_r2_key, 300)
+    const designSignedUrl = await getSignedR2Url(designR2Key, 300)
 
     const [designRes, templateRes] = await Promise.all([
       fetch(designSignedUrl),
@@ -61,8 +82,15 @@ export async function POST(request: Request) {
 
     console.log(`[mockup/template] Template: ${template.id}, ref: ${refW}×${refH}, corners:`, corners)
 
-    // 4. Perspective warp + multiply composite
-    const composited = await compositeOverlay(designBuffer, refBuffer, corners, refW, refH)
+    // 4. Perspective warp + premium composite
+    const composited = await compositeOverlay(
+      designBuffer,
+      refBuffer,
+      corners,
+      refW,
+      refH,
+      { designBlendMode: template.blendMode ?? 'over' }
+    )
 
     // 5. Upload result to R2
     const generationId = crypto.randomUUID()
@@ -87,7 +115,7 @@ export async function POST(request: Request) {
         prompt_raw: null,
         prompt_enhanced: null,
         reference_image_r2_key: null,
-        invitation_r2_key: body.design_r2_key,
+        invitation_r2_key: designR2Key,
         scene_preset: null,
         custom_scene_prompt: `template:${template.id}`,
         result_r2_keys: [r2Key],
@@ -106,13 +134,21 @@ export async function POST(request: Request) {
     if (generationResult.error) throw generationResult.error
 
     return Response.json({
-      r2_key: r2Key,
-      signed_url: signedUrl,
+      generation_id: generationId,
+      result: { r2_key: r2Key, signed_url: signedUrl },
       credits_remaining: creditsRemaining,
       template_id: template.id,
     })
   } catch (error) {
     console.error('[mockup/template]', error)
+
+    if (error instanceof Error && /unsupported image format|input buffer/i.test(error.message)) {
+      return Response.json(
+        buildVisualValidationError([{ field: 'design_r2_key', message: 'The uploaded design image could not be processed.' }]),
+        { status: 422 }
+      )
+    }
+
     const message = error instanceof Error ? error.message : 'Template mockup failed. Please try again.'
     return Response.json({ error: message }, { status: 500 })
   }

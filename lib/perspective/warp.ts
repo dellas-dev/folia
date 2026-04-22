@@ -7,11 +7,17 @@ import {
   invertMatrix3x3,
   isInsideQuad,
 } from './homography'
+import { applySoftEdgeMask, clampShadowSigma, compositeSoftenedOverlay, type DesignBlendMode } from '@/lib/mockup/compositing'
 import { normalizeInternalBlurSigma } from '@/lib/mockup/sigma'
 import type { MockupScenePreset } from '@/types'
 
 const MAX_DESIGN_PX = 1200
 const MAX_REF_PX = 1500
+
+function clampEdgeSofteningSigma(value: number | undefined) {
+  const normalized = normalizeInternalBlurSigma(value)
+  return Math.max(0.3, Math.min(1.4, normalized))
+}
 
 // Bilinear interpolation: samples RGBA raw buffer at fractional (x, y)
 function bilinearSample(
@@ -230,7 +236,7 @@ export async function compositeDesignCentered(
   const placement = getMockupPlacement(scenePreset)
   const maxW = Math.round(bgW * placement.maxWRatio)
   const maxH = Math.round(bgH * placement.maxHRatio)
-  const designBlurSigma = normalizeInternalBlurSigma(sigma)
+  const edgeSoftnessSigma = clampEdgeSofteningSigma(sigma)
 
   // Sample the background at the estimated card position to derive a scene-matched
   // paper color. Real printed card on a warm surface picks up ambient reflected light —
@@ -273,21 +279,22 @@ export async function compositeDesignCentered(
   const rotationSign = Math.random() > 0.5 ? 1 : -1
   const rotationDeg  = rotationSign * (Math.random() * 0.5 + 0.5)
 
-  const design = await sharp(designBuffer)
+  const flattenedDesign = await sharp(designBuffer)
     .resize(maxW, maxH, { fit: 'inside', withoutEnlargement: false })
     .flatten({ background: paperColor })
     .rotate(rotationDeg, { background: paperColor })
     // Lift brightness slightly and desaturate to match ambient background mood,
     // then tint toward the background's dominant warmth/coolness so the card
     // feels embedded rather than pasted.
-    .modulate({ brightness: 0.93, saturation: 0.80 })
+    .modulate({ brightness: 0.97, saturation: 0.92 })
     .tint(tintColor)
     // Color temperature matching: nudge RGB channels to prevent the card looking
     // "too blue/cool" against a warm AI background (or vice versa).
     .recomb(getColorTempMatrix(colorTemp))
-    .blur(designBlurSigma)
     .png()
     .toBuffer()
+
+  const design = await applySoftEdgeMask(flattenedDesign, edgeSoftnessSigma)
 
   const { width: dW, height: dH } = await sharp(design).metadata() as { width: number; height: number }
 
@@ -295,9 +302,10 @@ export async function compositeDesignCentered(
   const top  = Math.round((bgH - dH) / 2 + bgH * placement.offsetYRatio)
 
   // Paper base sits under the artwork so any transparent edges read as a physical sheet.
-  const whitePaper = await sharp({
+  const whitePaperBase = await sharp({
     create: { width: dW, height: dH, channels: 3, background: paperColor },
   }).png().toBuffer()
+  const whitePaper = await applySoftEdgeMask(whitePaperBase, edgeSoftnessSigma)
 
   // Two-layer shadow system using SVG rectangles — NOT card content.
   //
@@ -333,25 +341,25 @@ export async function compositeDesignCentered(
   const [contactShadow, castShadow] = await Promise.all([
     sharp(Buffer.from(
       `<svg width="${dW + CONTACT_PAD * 2}" height="${dH + CONTACT_PAD * 2}" xmlns="http://www.w3.org/2000/svg">` +
-      `<rect x="${CONTACT_PAD}" y="${CONTACT_PAD}" width="${dW}" height="${dH}" fill="rgba(28,20,14,0.14)"/>` +
+      `<rect x="${CONTACT_PAD}" y="${CONTACT_PAD}" width="${dW}" height="${dH}" fill="rgba(28,20,14,0.10)"/>` +
       `</svg>`
     ))
-      .blur(normalizeInternalBlurSigma(CONTACT_BLUR))
+      .blur(clampShadowSigma(CONTACT_BLUR))
       .png()
       .toBuffer(),
     sharp(Buffer.from(
       `<svg width="${dW + shadowOffsetX + CAST_PAD}" height="${dH + shadowOffsetY + CAST_PAD}" xmlns="http://www.w3.org/2000/svg">` +
-      `<rect x="${shadowOffsetX}" y="${shadowOffsetY}" width="${dW}" height="${dH}" fill="rgba(22,16,10,0.08)"/>` +
+      `<rect x="${shadowOffsetX}" y="${shadowOffsetY}" width="${dW}" height="${dH}" fill="rgba(22,16,10,0.06)"/>` +
       `</svg>`
     ))
-      .blur(normalizeInternalBlurSigma(CAST_BLUR))
+      .blur(clampShadowSigma(CAST_BLUR))
       .png()
       .toBuffer(),
   ])
 
   // Dark edge strip: same card dimensions, offset 3px down-right, sits between shadow
   // and white paper so only a 3px sliver peeks out — reads as heavy cardstock thickness.
-  const EDGE_PX = 3
+  const EDGE_PX = 2
   const darkEdge = await sharp({
     create: { width: dW, height: dH, channels: 3, background: getDarkEdgeColor(colorTemp) },
   }).png().toBuffer()
@@ -399,8 +407,8 @@ export async function compositeDesignCentered(
 
   // Corner-weighted border reveal: background elements heavily overlap card
   // corners (like real props placed on physical cards), taper toward edges.
-  const CORNER_OVERLAP = 130  // px radial distance from each corner
-  const EDGE_OVERLAP   = 55   // px from each straight edge
+  const CORNER_OVERLAP = 105  // px radial distance from each corner
+  const EDGE_OVERLAP   = 42   // px from each straight edge
 
   const bgRawResult = await sharp(backgroundBuffer)
     .ensureAlpha()
@@ -434,10 +442,10 @@ export async function compositeDesignCentered(
       const edgeDist = Math.min(dL, dR, dT, dB)
 
       const cornerAlpha = minCornerDist < CORNER_OVERLAP
-        ? 245 * Math.pow(1 - minCornerDist / CORNER_OVERLAP, 0.65)
+        ? 185 * Math.pow(1 - minCornerDist / CORNER_OVERLAP, 0.8)
         : 0
       const edgeAlpha = edgeDist < EDGE_OVERLAP
-        ? 190 * Math.pow(1 - edgeDist / EDGE_OVERLAP, 1.1)
+        ? 110 * Math.pow(1 - edgeDist / EDGE_OVERLAP, 1.15)
         : 0
 
       const alpha = Math.min(255, Math.round(Math.max(cornerAlpha, edgeAlpha)))
@@ -465,7 +473,7 @@ export async function compositeDesignCentered(
       // White paper establishes opaque base
       { input: whitePaper,    blend: 'over',     left, top },
       // Design on white: multiply(255, color) = color — full fidelity
-      { input: design,        blend: 'multiply', left, top },
+      { input: design,        blend: placement.designBlendMode, left, top },
       // Paper edge highlight: thin inner glow for physical paper feel
       { input: edgeGlow,      blend: 'screen',   left, top },
       // Grain overlay: ~7% opacity random noise scaled to background texture level
@@ -510,25 +518,10 @@ export async function compositeTemplateOnly(
   const whitePaper = await sharp({
     create: { width: dW, height: dH, channels: 3, background: { r: 255, g: 255, b: 255 } },
   }).png().toBuffer()
+  const softWhitePaper = await applySoftEdgeMask(whitePaper, 0.45)
 
-  const CARD_FEATHER = 14
-  const featherMask = await sharp(Buffer.from(
-    `<svg width="${dW}" height="${dH}" xmlns="http://www.w3.org/2000/svg">` +
-    `<rect x="${CARD_FEATHER}" y="${CARD_FEATHER}" ` +
-    `width="${dW - CARD_FEATHER * 2}" height="${dH - CARD_FEATHER * 2}" fill="white"/>` +
-    `</svg>`
-  ))
-    .blur(normalizeInternalBlurSigma(CARD_FEATHER))
-    .png()
-    .toBuffer()
-
-  const softWhitePaper = await sharp(whitePaper)
-    .composite([{ input: featherMask, blend: 'dest-in' }])
-    .png()
-    .toBuffer()
-
-  const CORNER_OVERLAP = 130
-  const EDGE_OVERLAP   = 55
+  const CORNER_OVERLAP = 105
+  const EDGE_OVERLAP   = 42
 
   const bgRawResult = await sharp(backgroundBuffer)
     .ensureAlpha()
@@ -560,9 +553,9 @@ export async function compositeTemplateOnly(
       const edgeDist = Math.min(dL, dR, dT, dB)
 
       const cornerAlpha = minCornerDist < CORNER_OVERLAP
-        ? 245 * Math.pow(1 - minCornerDist / CORNER_OVERLAP, 0.65) : 0
+        ? 185 * Math.pow(1 - minCornerDist / CORNER_OVERLAP, 0.8) : 0
       const edgeAlpha = edgeDist < EDGE_OVERLAP
-        ? 190 * Math.pow(1 - edgeDist / EDGE_OVERLAP, 1.1) : 0
+        ? 110 * Math.pow(1 - edgeDist / EDGE_OVERLAP, 1.15) : 0
 
       const alpha = Math.min(255, Math.round(Math.max(cornerAlpha, edgeAlpha)))
       if (alpha === 0) continue
@@ -634,6 +627,7 @@ function getMockupPlacement(scenePreset?: MockupScenePreset) {
         shadowAlpha: 0.28,
         shadowOffsetX: 12,
         shadowOffsetY: 12,
+        designBlendMode: 'over' as const,
       }
     case 'marble-eucalyptus':
     case 'invitation-suite':
@@ -650,6 +644,7 @@ function getMockupPlacement(scenePreset?: MockupScenePreset) {
         shadowAlpha: 0.28,
         shadowOffsetX: 12,
         shadowOffsetY: 12,
+        designBlendMode: scenePreset === 'classic-black-tie' ? 'multiply' as const : 'over' as const,
       }
     case 'golden-plate':
     case 'save-the-date-satin':
@@ -666,6 +661,7 @@ function getMockupPlacement(scenePreset?: MockupScenePreset) {
         shadowAlpha: 0.28,
         shadowOffsetX: 12,
         shadowOffsetY: 12,
+        designBlendMode: scenePreset === 'earthy-terracotta' || scenePreset === 'vintage-silk' ? 'multiply' as const : 'over' as const,
       }
     default:
       return {
@@ -678,37 +674,35 @@ function getMockupPlacement(scenePreset?: MockupScenePreset) {
         shadowAlpha: 0.28,
         shadowOffsetX: 12,
         shadowOffsetY: 12,
+        designBlendMode: 'over' as const,
       }
   }
 }
 
 // Full pipeline: erase existing design on reference, then warp and place new design.
-// Step 1 — composite white fill with 'over' blend: blanks out the existing content.
-// Step 2 — composite warped design with 'multiply' blend: preserves surface texture.
-// multiply on white = design shows exactly as-is (255 * x / 255 = x).
+// Step 1 — composite a softly masked white fill so the previous artwork is removed
+// without creating a hard white sticker edge.
+// Step 2 — composite the warped design with adaptive blend mode:
+// default 'over' for fidelity, optional 'multiply' for texture-heavy scenes.
 export async function compositeOverlay(
   designBuffer: Buffer,
   refBuffer: Buffer,
   corners: CornerPoints,
   refWidth: number,
-  refHeight: number
+  refHeight: number,
+  options?: {
+    designBlendMode?: DesignBlendMode
+    edgeSoftnessSigma?: number
+  }
 ): Promise<Buffer> {
   const [warpedPng, whiteFill] = await Promise.all([
     perspectiveWarp(designBuffer, corners, refWidth, refHeight),
     createWhiteFill(corners, refWidth, refHeight),
   ])
 
-  // Soften the hard alpha edge so the design looks printed rather than sticker-pasted.
-  // blur(0.7) softens the transparent→opaque boundary by ~1–2px without visibly
-  // blurring the interior of the design at typical output sizes.
-  const softWarp = await sharp(warpedPng).blur(normalizeInternalBlurSigma(0.7)).toBuffer()
-
-  return sharp(refBuffer)
-    .resize(MAX_REF_PX, MAX_REF_PX, { fit: 'inside', withoutEnlargement: true })
-    .composite([
-      { input: whiteFill, blend: 'over' },
-      { input: softWarp, blend: 'multiply' },
-    ])
-    .png()
-    .toBuffer()
+  return compositeSoftenedOverlay(refBuffer, whiteFill, warpedPng, {
+    designBlendMode: options?.designBlendMode ?? 'over',
+    edgeSoftnessSigma: options?.edgeSoftnessSigma ?? 0.45,
+    resizeToFit: { width: MAX_REF_PX, height: MAX_REF_PX },
+  })
 }

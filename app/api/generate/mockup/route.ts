@@ -2,6 +2,7 @@ import { getCurrentProfile } from '@/lib/clerk/auth'
 import { generateSceneBackground } from '@/lib/fal/backgrounds'
 import { getFalMissingEnv, isFalNetworkError } from '@/lib/fal/client'
 import { analyzeDesignForBackground } from '@/lib/gemini/enhancer'
+import { buildVisualValidationError } from '@/lib/mockup/request'
 import { parseMockupSigmaInput } from '@/lib/mockup/sigma'
 import { getPlanForTier } from '@/lib/plans'
 import { compositeDesignCentered, detectColorTemperature } from '@/lib/perspective/warp'
@@ -88,13 +89,16 @@ export async function POST(request: Request) {
     }
 
     if (!body.invitation_r2_key) {
-      return Response.json({ error: 'invitation_r2_key is required' }, { status: 422 })
+      return Response.json(
+        buildVisualValidationError([{ field: 'invitation_r2_key', message: 'invitation_r2_key is required.' }], 'Invalid mockup payload.'),
+        { status: 422 }
+      )
     }
 
     const sigmaResult = parseMockupSigmaInput(body.sigma)
     if (!sigmaResult.ok) {
       return Response.json(
-        { error: sigmaResult.error, field: 'sigma' },
+        buildVisualValidationError([{ field: 'sigma', message: sigmaResult.error }]),
         { status: 422 }
       )
     }
@@ -298,14 +302,19 @@ export async function POST(request: Request) {
 
     if (error instanceof Error && /unsupported image format|input buffer/i.test(error.message)) {
       return Response.json(
-        { error: 'The uploaded invitation image could not be processed. Please try a PNG, JPG, or WEBP export.' },
+        buildVisualValidationError([
+          {
+            field: 'invitation_r2_key',
+            message: 'The uploaded invitation image could not be processed. Please try a PNG, JPG, or WEBP export.',
+          },
+        ]),
         { status: 422 }
       )
     }
 
     if (error instanceof Error && /sigma must be/i.test(error.message)) {
       return Response.json(
-        { error: error.message, field: 'sigma' },
+        buildVisualValidationError([{ field: 'sigma', message: error.message }]),
         { status: 422 }
       )
     }

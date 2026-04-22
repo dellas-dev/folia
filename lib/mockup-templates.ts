@@ -16,6 +16,8 @@ export interface MockupTemplate {
     bottomRight: { x: number; y: number }
     bottomLeft:  { x: number; y: number }
   }
+  /** Use multiply only for scenes where visible paper texture should show through the artwork. */
+  blendMode?: 'over' | 'multiply'
 }
 
 export interface MockupBundle {
@@ -109,6 +111,7 @@ export const MOCKUP_BUNDLES: MockupBundle[] = [
         angleEmoji: '🍃',
         imageUrl:  'https://picsum.photos/seed/euc-table/1500/1000',
         thumbUrl:  'https://picsum.photos/seed/euc-table/480/320',
+        blendMode: 'multiply',
         corners: {
           topLeft:     { x: 0.30, y: 0.17 },
           topRight:    { x: 0.70, y: 0.15 },
@@ -246,6 +249,7 @@ export const MOCKUP_BUNDLES: MockupBundle[] = [
         angleEmoji: '📋',
         imageUrl:  'https://picsum.photos/seed/rus-flat/1500/1000',
         thumbUrl:  'https://picsum.photos/seed/rus-flat/480/320',
+        blendMode: 'multiply',
         corners: {
           topLeft:     { x: 0.17, y: 0.16 },
           topRight:    { x: 0.67, y: 0.13 },

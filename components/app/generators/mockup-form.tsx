@@ -17,6 +17,8 @@ import {
 
 import { useToast } from '@/components/ui/toast-provider'
 import { downloadR2File } from '@/lib/download'
+import { buildMockupRequest, type MockupMode } from '@/lib/mockup/request'
+import { MOCKUP_BUNDLES } from '@/lib/mockup-templates'
 import {
   DEFAULT_MOCKUP_SIGMA,
   parseMockupSigmaInput,
@@ -33,19 +35,22 @@ type MockupFormProps = {
   initialPreviewUrl?: string
 }
 
-type MockupResponse = {
+type GenerationResponse = {
   generation_id: string
   result: { r2_key: string; signed_url: string }
   scene_prompt_used: string
   credits_remaining: number
 }
 
+const DEFAULT_TEMPLATE_ID = MOCKUP_BUNDLES[0]?.templates[0]?.id ?? null
+
 export function MockupForm({ tier, startingCredits, initialInvitationKey, initialPreviewUrl }: MockupFormProps) {
-  const [mode, setMode] = useState<'mockup' | 'template'>('mockup')
+  const [mode, setMode] = useState<MockupMode>('mockup-ai')
   const [invitationKey, setInvitationKey] = useState<string | null>(initialInvitationKey ?? null)
   const [invitationName, setInvitationName] = useState<string | null>(initialInvitationKey ? 'From Elements' : null)
   const [invitationPreviewUrl, setInvitationPreviewUrl] = useState<string | null>(initialPreviewUrl ?? null)
   const [scenePreset, setScenePreset] = useState<MockupScenePreset | null>(null)
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(DEFAULT_TEMPLATE_ID)
   const [customDetails, setCustomDetails] = useState('')
   const [sigmaInput, setSigmaInput] = useState(String(DEFAULT_MOCKUP_SIGMA))
   const [_referenceKey, setReferenceKey] = useState<string | null>(null)
@@ -66,7 +71,12 @@ export function MockupForm({ tier, startingCredits, initialInvitationKey, initia
   const { toast } = useToast()
 
   const canUseMockups = (tier === 'pro' || tier === 'business') && credits > 0
-  const isAutoMode = scenePreset === null
+  const isAiMode = mode === 'mockup-ai'
+  const isTemplateMode = mode === 'scene-template'
+  const isAutoMode = isAiMode && scenePreset === null
+  const selectedTemplate = MOCKUP_BUNDLES
+    .flatMap((bundle) => bundle.templates.map((template) => ({ bundle, template })))
+    .find((entry) => entry.template.id === selectedTemplateId)
 
   /* ── Upgrade wall ─────────────────────────────────────────── */
   if (!canUseMockups) {
@@ -230,7 +240,7 @@ export function MockupForm({ tier, startingCredits, initialInvitationKey, initia
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ reference_r2_key: extractKey }),
       })
-      const data = await response.json() as MockupResponse & { error?: string }
+      const data = await response.json() as GenerationResponse & { error?: string }
       if (!response.ok) throw new Error(data.error || 'Extract failed.')
       setResultUrl(data.result.signed_url)
       setResultR2Key(data.result.r2_key)
@@ -247,39 +257,44 @@ export function MockupForm({ tier, startingCredits, initialInvitationKey, initia
     setSubmitting(true)
     setError(null)
     try {
-      if (mode === 'template') {
-        const response = await fetch('/api/generate/template', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            invitation_r2_key: invitationKey,
-            scene_preset: scenePreset ?? undefined,
-            custom_prompt: customDetails.trim() || undefined,
-          }),
-        })
-        const data = await response.json() as MockupResponse & { error?: string }
-        if (!response.ok) throw new Error(data.error || 'Scene Template generation failed.')
-        setResultUrl(data.result.signed_url)
-        setResultR2Key(data.result.r2_key)
-        setCredits(data.credits_remaining)
-        return
+      if (!invitationKey) {
+        throw new Error('Upload your design first.')
       }
 
-      const sigma = validateSigmaInput()
-      if (sigma === null) return
+      const trimmedPrompt = customDetails.trim() || undefined
 
-      const response = await fetch('/api/generate/mockup', {
+      let requestConfig: ReturnType<typeof buildMockupRequest>
+
+      if (isTemplateMode) {
+        if (!selectedTemplateId) {
+          throw new Error('Choose a scene template first.')
+        }
+
+        requestConfig = buildMockupRequest({
+          mode: 'scene-template',
+          designR2Key: invitationKey,
+          templateId: selectedTemplateId,
+        })
+      } else {
+        const sigma = validateSigmaInput()
+        if (sigma === null) return
+
+        requestConfig = buildMockupRequest({
+          mode: 'mockup-ai',
+          designR2Key: invitationKey,
+          scenePreset: scenePreset ?? undefined,
+          customPrompt: trimmedPrompt,
+          sigma,
+        })
+      }
+
+      const response = await fetch(requestConfig.endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          invitation_r2_key: invitationKey,
-          scene_preset: scenePreset ?? undefined,
-          custom_prompt: customDetails.trim() || undefined,
-          sigma,
-        }),
+        body: JSON.stringify(requestConfig.body),
       })
-      const data = await response.json() as MockupResponse & { error?: string }
-      if (!response.ok) throw new Error(data.error || 'Mockup generation failed.')
+      const data = await response.json() as GenerationResponse & { error?: string }
+      if (!response.ok) throw new Error(data.error || (isTemplateMode ? 'Scene Template generation failed.' : 'Mockup generation failed.'))
       setResultUrl(data.result.signed_url)
       setResultR2Key(data.result.r2_key)
       setCredits(data.credits_remaining)
@@ -324,22 +339,27 @@ export function MockupForm({ tier, startingCredits, initialInvitationKey, initia
       <div className="mb-5 flex gap-2">
         <button
           type="button"
-          onClick={() => { setMode('mockup'); setResultUrl(null) }}
+          onClick={() => { setMode('mockup-ai'); setResultUrl(null); setError(null) }}
           className="rounded-full px-5 py-2 text-sm font-semibold transition-all"
           style={{
-            backgroundColor: mode === 'mockup' ? '#37656b' : '#f4f3f3',
-            color: mode === 'mockup' ? '#ffffff' : '#70787a',
+            backgroundColor: isAiMode ? '#37656b' : '#f4f3f3',
+            color: isAiMode ? '#ffffff' : '#70787a',
           }}
         >
           Mockup
         </button>
         <button
           type="button"
-          onClick={() => { setMode('template'); setResultUrl(null) }}
+          onClick={() => {
+            setMode('scene-template')
+            setSelectedTemplateId((current) => current ?? DEFAULT_TEMPLATE_ID)
+            setResultUrl(null)
+            setError(null)
+          }}
           className="rounded-full px-5 py-2 text-sm font-semibold transition-all"
           style={{
-            backgroundColor: mode === 'template' ? '#37656b' : '#f4f3f3',
-            color: mode === 'template' ? '#ffffff' : '#70787a',
+            backgroundColor: isTemplateMode ? '#37656b' : '#f4f3f3',
+            color: isTemplateMode ? '#ffffff' : '#70787a',
           }}
         >
           Scene Template
@@ -358,54 +378,105 @@ export function MockupForm({ tier, startingCredits, initialInvitationKey, initia
         >
           <form onSubmit={handleSubmit} className="space-y-6">
 
-            {/* Scene selector */}
-            <div className="space-y-2.5">
-              <p className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: '#70787a' }}>
-                Select Scene
-              </p>
-              <div className="overflow-x-auto">
-                <div className="flex gap-2.5 pb-1">
-                  {MOCKUP_SCENE_OPTIONS.map((scene) => {
-                    const active = scene.id === scenePreset
-                    return (
-                      <button
-                        key={scene.id}
-                        type="button"
-                        onClick={() => setScenePreset(scene.id)}
-                        className={cn(
-                          'group w-[120px] shrink-0 overflow-hidden rounded-[1rem] text-left transition-all duration-200',
-                          active
-                            ? 'shadow-[0_0_0_2px_#37656b,0_4px_16px_rgba(55,101,107,0.15)]'
-                            : 'shadow-[0_2px_8px_rgba(55,101,107,0.06)] hover:-translate-y-0.5'
-                        )}
-                        style={{ backgroundColor: '#ffffff' }}
-                      >
-                        <div className="flex h-20 items-center justify-center" style={{ backgroundColor: '#f4f3f3' }}>
-                          <span className="text-4xl">{scene.emoji}</span>
-                        </div>
-                        <div className="px-2.5 py-2 text-center">
-                          <p className="text-xs font-semibold" style={{ color: active ? '#37656b' : '#1a1c1c' }}>
-                            {scene.label}
-                          </p>
-                        </div>
-                      </button>
-                    )
-                  })}
-                  <button
-                    type="button"
-                    onClick={() => setScenePreset(null)}
-                    className="flex size-10 shrink-0 items-center justify-center self-center rounded-full transition-colors"
-                    style={{
-                      backgroundColor: isAutoMode ? '#37656b' : '#eeeeee',
-                      color: isAutoMode ? '#ffffff' : '#70787a',
-                    }}
-                    aria-label="Auto scene matching"
-                  >
-                    <Sparkles className="size-4" />
-                  </button>
+            {isAiMode ? (
+              <div className="space-y-2.5">
+                <p className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: '#70787a' }}>
+                  Select Scene
+                </p>
+                <div className="overflow-x-auto">
+                  <div className="flex gap-2.5 pb-1">
+                    {MOCKUP_SCENE_OPTIONS.map((scene) => {
+                      const active = scene.id === scenePreset
+                      return (
+                        <button
+                          key={scene.id}
+                          type="button"
+                          onClick={() => setScenePreset(scene.id)}
+                          className={cn(
+                            'group w-[120px] shrink-0 overflow-hidden rounded-[1rem] text-left transition-all duration-200',
+                            active
+                              ? 'shadow-[0_0_0_2px_#37656b,0_4px_16px_rgba(55,101,107,0.15)]'
+                              : 'shadow-[0_2px_8px_rgba(55,101,107,0.06)] hover:-translate-y-0.5'
+                          )}
+                          style={{ backgroundColor: '#ffffff' }}
+                        >
+                          <div className="flex h-20 items-center justify-center" style={{ backgroundColor: '#f4f3f3' }}>
+                            <span className="text-4xl">{scene.emoji}</span>
+                          </div>
+                          <div className="px-2.5 py-2 text-center">
+                            <p className="text-xs font-semibold" style={{ color: active ? '#37656b' : '#1a1c1c' }}>
+                              {scene.label}
+                            </p>
+                          </div>
+                        </button>
+                      )
+                    })}
+                    <button
+                      type="button"
+                      onClick={() => setScenePreset(null)}
+                      className="flex size-10 shrink-0 items-center justify-center self-center rounded-full transition-colors"
+                      style={{
+                        backgroundColor: isAutoMode ? '#37656b' : '#eeeeee',
+                        color: isAutoMode ? '#ffffff' : '#70787a',
+                      }}
+                      aria-label="Auto scene matching"
+                    >
+                      <Sparkles className="size-4" />
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: '#70787a' }}>
+                    Choose Template
+                  </p>
+                  {selectedTemplate ? (
+                    <p className="text-[11px]" style={{ color: '#70787a' }}>
+                      {selectedTemplate.bundle.label} / {selectedTemplate.template.angleLabel}
+                    </p>
+                  ) : null}
+                </div>
+                <div className="space-y-3 rounded-[1rem] p-3" style={{ backgroundColor: '#f4f3f3' }}>
+                  {MOCKUP_BUNDLES.map((bundle) => (
+                    <div key={bundle.id} className="space-y-2">
+                      <div>
+                        <p className="text-xs font-semibold" style={{ color: '#1a1c1c' }}>{bundle.emoji} {bundle.label}</p>
+                        <p className="text-[11px] leading-5" style={{ color: '#70787a' }}>{bundle.description}</p>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2">
+                        {bundle.templates.map((template) => {
+                          const active = template.id === selectedTemplateId
+                          return (
+                            <button
+                              key={template.id}
+                              type="button"
+                              onClick={() => setSelectedTemplateId(template.id)}
+                              className={cn(
+                                'overflow-hidden rounded-[0.875rem] border text-left transition-all',
+                                active && 'shadow-[0_0_0_2px_#37656b,0_8px_20px_rgba(55,101,107,0.12)]'
+                              )}
+                              style={{
+                                borderColor: active ? '#37656b' : 'rgba(192,200,201,0.7)',
+                                backgroundColor: '#ffffff',
+                              }}
+                            >
+                              <img src={template.thumbUrl} alt={`${bundle.label} ${template.angleLabel}`} className="h-20 w-full object-cover" />
+                              <div className="px-2.5 py-2">
+                                <p className="text-[11px] font-semibold" style={{ color: active ? '#37656b' : '#1a1c1c' }}>
+                                  {template.angleEmoji} {template.angleLabel}
+                                </p>
+                              </div>
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Design upload */}
             <div className="space-y-2.5">
@@ -513,7 +584,7 @@ export function MockupForm({ tier, startingCredits, initialInvitationKey, initia
             ) : null}
 
             {/* Custom details */}
-            {isAutoMode ? (
+            {isAiMode ? (
               <div className="space-y-2.5">
                 <label htmlFor="custom-details" className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: '#70787a' }}>
                   Custom Details{' '}
@@ -533,36 +604,38 @@ export function MockupForm({ tier, startingCredits, initialInvitationKey, initia
               </div>
             ) : null}
 
-            <div className="space-y-2.5">
-              <label htmlFor="mockup-sigma" className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: '#70787a' }}>
-                Edge Blur Sigma
-              </label>
-              <input
-                id="mockup-sigma"
-                type="number"
-                inputMode="decimal"
-                min={SHARP_BLUR_SIGMA_MIN}
-                max={SHARP_BLUR_SIGMA_MAX}
-                step="0.1"
-                value={sigmaInput}
-                onChange={(e) => setSigmaInput(e.target.value)}
-                onBlur={(e) => {
-                  const sigma = validateSigmaInput()
-                  if (sigma !== null) {
-                    setSigmaInput(String(sigma))
-                  }
-                  e.currentTarget.style.borderColor = 'transparent'
-                  e.currentTarget.style.backgroundColor = '#f4f3f3'
-                  e.currentTarget.style.boxShadow = 'none'
-                }}
-                className="w-full rounded-[0.875rem] px-4 py-3 text-sm outline-none transition-all"
-                style={{ backgroundColor: '#f4f3f3', color: '#1a1c1c', border: '1.5px solid transparent' }}
-                onFocus={(e) => { e.currentTarget.style.borderColor = 'rgba(55,101,107,0.4)'; e.currentTarget.style.backgroundColor = '#ffffff'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(55,101,107,0.08)' }}
-              />
-              <p className="text-[11px] leading-5" style={{ color: '#70787a' }}>
-                Controls the paper edge softness. Valid range: {SHARP_BLUR_SIGMA_MIN} to {SHARP_BLUR_SIGMA_MAX}. Default: {DEFAULT_MOCKUP_SIGMA}.
-              </p>
-            </div>
+            {isAiMode ? (
+              <div className="space-y-2.5">
+                <label htmlFor="mockup-sigma" className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: '#70787a' }}>
+                  Edge Softness Sigma
+                </label>
+                <input
+                  id="mockup-sigma"
+                  type="number"
+                  inputMode="decimal"
+                  min={SHARP_BLUR_SIGMA_MIN}
+                  max={SHARP_BLUR_SIGMA_MAX}
+                  step="0.1"
+                  value={sigmaInput}
+                  onChange={(e) => setSigmaInput(e.target.value)}
+                  onBlur={(e) => {
+                    const sigma = validateSigmaInput()
+                    if (sigma !== null) {
+                      setSigmaInput(String(sigma))
+                    }
+                    e.currentTarget.style.borderColor = 'transparent'
+                    e.currentTarget.style.backgroundColor = '#f4f3f3'
+                    e.currentTarget.style.boxShadow = 'none'
+                  }}
+                  className="w-full rounded-[0.875rem] px-4 py-3 text-sm outline-none transition-all"
+                  style={{ backgroundColor: '#f4f3f3', color: '#1a1c1c', border: '1.5px solid transparent' }}
+                  onFocus={(e) => { e.currentTarget.style.borderColor = 'rgba(55,101,107,0.4)'; e.currentTarget.style.backgroundColor = '#ffffff'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(55,101,107,0.08)' }}
+                />
+                <p className="text-[11px] leading-5" style={{ color: '#70787a' }}>
+                  Controls only the edge feathering, not a blur over the full card. Valid range: {SHARP_BLUR_SIGMA_MIN} to {SHARP_BLUR_SIGMA_MAX}. Default: {DEFAULT_MOCKUP_SIGMA}.
+                </p>
+              </div>
+            ) : null}
 
             {/* Alerts */}
             {error ? (
@@ -589,8 +662,8 @@ export function MockupForm({ tier, startingCredits, initialInvitationKey, initia
               >
                 {submitting ? <LoaderCircle className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
                 {submitting
-                  ? (mode === 'template' ? 'Generating scene template...' : 'Folia is generating your mockup...')
-                  : (mode === 'template' ? 'Generate Template' : 'Generate Mockup')
+                  ? (isTemplateMode ? 'Applying template warp...' : 'Folia is generating your mockup...')
+                  : (isTemplateMode ? 'Generate Scene Template' : 'Generate Mockup')
                 }
               </button>
               {!submitting ? (
@@ -598,16 +671,16 @@ export function MockupForm({ tier, startingCredits, initialInvitationKey, initia
                   Uses <strong style={{ color: '#70787a' }}>1</strong> credit
                 </p>
               ) : null}
-              {mode === 'template' && !submitting ? (
+              {isTemplateMode && !submitting ? (
                 <p className="text-center text-[11px] leading-5" style={{ color: '#70787a' }}>
-                  Hasilkan scene dengan kertas kosong. Pasang desain Anda di Photoshop.
+                  Template mode memakai route warp terpisah dan langsung menempelkan desain Anda ke template terpilih.
                 </p>
               ) : null}
             </div>
           </form>
 
           {/* ── Extract from Reference (template mode only) ── */}
-          {mode === 'template' ? (
+          {isTemplateMode ? (
             <div className="mt-6 space-y-4">
               <div className="flex items-center gap-3">
                 <div className="h-px flex-1" style={{ backgroundColor: '#eeeeee' }} />
@@ -707,7 +780,7 @@ export function MockupForm({ tier, startingCredits, initialInvitationKey, initia
                 />
               </div>
               <p className="text-[10px] font-bold uppercase tracking-[0.18em]" style={{ color: '#70787a' }}>
-                {mode === 'template' ? 'Scene Template Result' : 'AI Scene Result'}
+                {isTemplateMode ? 'Scene Template Result' : 'AI Scene Result'}
               </p>
               <div className="mt-auto flex gap-2.5">
                 <button
