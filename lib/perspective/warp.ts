@@ -1,12 +1,7 @@
 import sharp from 'sharp'
-import {
-  type CornerPoints,
-  type Point,
-  applyH,
-  computeHomography,
-  invertMatrix3x3,
-  isInsideQuad,
-} from './homography'
+import type { CornerPoints, Point } from './homography'
+import { extractRectifiedSurfaceRuntime } from './extract-runtime.js'
+import { applyH, computeHomography, invertMatrix3x3, isInsideQuad } from './homography-runtime.js'
 import { applySoftEdgeMask, clampShadowSigma, compositeSoftenedOverlay, type DesignBlendMode } from '@/lib/mockup/compositing'
 import { normalizeInternalBlurSigma } from '@/lib/mockup/sigma'
 import type { MockupScenePreset } from '@/types'
@@ -152,6 +147,20 @@ export async function perspectiveWarp(
   })
     .png()
     .toBuffer()
+}
+
+export async function extractRectifiedSurface(
+  refBuffer: Buffer,
+  corners: CornerPoints,
+  refWidth: number,
+  refHeight: number,
+  targetLongEdge: number
+): Promise<{
+  buffer: Buffer
+  width: number
+  height: number
+}> {
+  return extractRectifiedSurfaceRuntime(refBuffer, corners, refWidth, refHeight, targetLongEdge)
 }
 
 // Creates a fully-opaque white quad mask in the shape of the destination corners.

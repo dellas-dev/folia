@@ -1,7 +1,8 @@
 import { getCurrentProfile } from '@/lib/clerk/auth'
-import { enhanceExtractReference } from '@/lib/mockup/compositing'
+import { detectMockupCorners } from '@/lib/gemini/enhancer'
 import { buildVisualValidationError } from '@/lib/mockup/request'
 import { getPlanForTier } from '@/lib/plans'
+import { extractRectifiedSurface, prepareReference } from '@/lib/perspective/warp'
 import { buildGenerationR2Key, getSignedR2Url, isOwnedR2Key, uploadToR2 } from '@/lib/r2/client'
 import { createServerClient } from '@/lib/supabase/server'
 import { enforceGenerationRateLimit } from '@/lib/upstash/ratelimit'
@@ -61,7 +62,7 @@ export async function POST(request: Request) {
     const plan = getPlanForTier(profile.tier)
     const generationStartedAt = Date.now()
 
-    // ── Fetch reference, upscale, and sharpen into a premium extract output ──
+    // ── Fetch reference, detect card corners, then rectify into a large planar extract ──
     const referenceSignedUrl = await getSignedR2Url(referenceR2Key, 300)
     const referenceRes = await fetch(referenceSignedUrl)
     if (!referenceRes.ok) {
@@ -69,11 +70,13 @@ export async function POST(request: Request) {
     }
 
     const referenceBuffer = Buffer.from(await referenceRes.arrayBuffer())
-    const enhancedReference = await enhanceExtractReference(referenceBuffer, plan.resolution)
+    const { resizedBuffer: referenceForDetection, width: refW, height: refH } = await prepareReference(referenceBuffer)
+    const corners = await detectMockupCorners(referenceForDetection.toString('base64'), 'image/jpeg', refW, refH)
+    const extractedSurface = await extractRectifiedSurface(referenceBuffer, corners, refW, refH, plan.resolution)
 
     const generationId = crypto.randomUUID()
     const r2Key = buildGenerationR2Key(user.id, generationId, 1, 'png')
-    await uploadToR2(r2Key, enhancedReference.buffer, 'image/png')
+    await uploadToR2(r2Key, extractedSurface.buffer, 'image/png')
     const signedUrl = await getSignedR2Url(r2Key, 3600)
 
     // ── Log generation + deduct credit ────────────────────────────────────
@@ -93,10 +96,10 @@ export async function POST(request: Request) {
       custom_scene_prompt: null,
       result_r2_keys: [r2Key],
       result_count: 1,
-      model_used: 'extract-template-v1',
-      gemini_used: false,
+      model_used: 'extract-template-rectify-v2',
+      gemini_used: true,
       generation_time_ms: Date.now() - generationStartedAt,
-      resolution: Math.max(enhancedReference.width, enhancedReference.height),
+      resolution: Math.max(extractedSurface.width, extractedSurface.height),
       is_public: false,
       public_approved: true,
       credits_spent: 1,
@@ -117,10 +120,18 @@ export async function POST(request: Request) {
       generation_id: generationId,
       result: { r2_key: r2Key, signed_url: signedUrl },
       credits_remaining: creditsRemaining,
+      corners,
     })
 
   } catch (error) {
     console.error('[mockup/extract] ERROR:', error)
+
+    if (error instanceof Error && error.message === 'GROQ_RATE_LIMIT') {
+      return Response.json(
+        { error: 'Vision analysis is temporarily rate-limited. Please try again in a moment.' },
+        { status: 429 }
+      )
+    }
 
     if (error instanceof Error && /reference image could not be processed|unsupported image format|input buffer/i.test(error.message)) {
       return Response.json(

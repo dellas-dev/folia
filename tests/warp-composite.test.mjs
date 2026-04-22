@@ -4,7 +4,10 @@ import sharp from 'sharp'
 
 const compositingModule = await import(new URL('../lib/mockup/compositing.ts', import.meta.url))
 
+const extractModule = await import(new URL('../lib/perspective/extract-runtime.js', import.meta.url))
+
 const { applySoftEdgeMask, compositeSoftenedOverlay } = compositingModule
+const { extractRectifiedSurfaceRuntime } = extractModule
 
 async function pixelAt(buffer, x, y) {
   const { data, info } = await sharp(buffer).ensureAlpha().raw().toBuffer({ resolveWithObject: true })
@@ -15,6 +18,21 @@ async function pixelAt(buffer, x, y) {
     b: data[index + 2],
     a: data[index + 3],
   }
+}
+
+async function minBrightnessInWindow(buffer, left, top, width, height) {
+  const { data, info } = await sharp(buffer).ensureAlpha().raw().toBuffer({ resolveWithObject: true })
+  let minBrightness = Infinity
+
+  for (let y = top; y < Math.min(info.height, top + height); y++) {
+    for (let x = left; x < Math.min(info.width, left + width); x++) {
+      const index = (y * info.width + x) * 4
+      const brightness = data[index] + data[index + 1] + data[index + 2]
+      minBrightness = Math.min(minBrightness, brightness)
+    }
+  }
+
+  return minBrightness
 }
 
 test('applySoftEdgeMask softens only the edge alpha while keeping the center fully opaque', async () => {
@@ -98,4 +116,39 @@ test('compositeSoftenedOverlay preserves readable dark content and avoids white 
 
   assert.ok(textPixel.r < 40 && textPixel.g < 40 && textPixel.b < 40, `expected readable dark text, got ${JSON.stringify(textPixel)}`)
   assert.ok(outsidePixel.r < 210 && outsidePixel.g < 210 && outsidePixel.b < 210, `expected no white bloom outside the card, got ${JSON.stringify(outsidePixel)}`)
+})
+
+test('extractRectifiedSurfaceRuntime turns a detected skewed sign into a large planar extract', async () => {
+  const corners = {
+    topLeft: { x: 70, y: 25 },
+    topRight: { x: 165, y: 30 },
+    bottomRight: { x: 178, y: 188 },
+    bottomLeft: { x: 60, y: 194 },
+  }
+
+  const scene = await sharp(Buffer.from(
+    `<svg width="240" height="220" xmlns="http://www.w3.org/2000/svg">` +
+    `<rect width="240" height="220" fill="#6e745d"/>` +
+    `<polygon points="70,25 165,30 178,188 60,194" fill="#fbfaf6"/>` +
+    `<polygon points="85,46 149,49 154,75 80,74" fill="#ffffff" stroke="#202020" stroke-width="2"/>` +
+    `<polygon points="92,99 143,101 147,112 88,110" fill="#161616"/>` +
+    `</svg>`
+  ))
+    .png()
+    .toBuffer()
+
+  const extracted = await extractRectifiedSurfaceRuntime(scene, corners, 240, 220, 2048)
+  const outer = await pixelAt(extracted.buffer, Math.round(extracted.width * 0.1), Math.round(extracted.height * 0.1))
+  const minLabelBrightness = await minBrightnessInWindow(
+    extracted.buffer,
+    Math.round(extracted.width * 0.35),
+    Math.round(extracted.height * 0.5),
+    Math.round(extracted.width * 0.3),
+    Math.round(extracted.height * 0.12)
+  )
+
+  assert.equal(extracted.height, 2048)
+  assert.ok(extracted.width > 1200 && extracted.width < 1500, `expected portrait planar extract, got ${extracted.width}x${extracted.height}`)
+  assert.ok(minLabelBrightness < 120, `expected extracted label area to retain dark detail, got brightness=${minLabelBrightness}`)
+  assert.ok(outer.r > 200 && outer.g > 200 && outer.b > 190, `expected extracted surface to stay bright, got ${JSON.stringify(outer)}`)
 })
