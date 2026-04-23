@@ -140,7 +140,53 @@ create or replace trigger on_generation_created
   after insert on public.generations
   for each row execute function increment_generation_counter();
 
--- ─── 6. purchases ────────────────────────────────────────────
+-- ─── 6. extracted_templates ──────────────────────────────────
+create table if not exists public.extracted_templates (
+  id                 uuid primary key default gen_random_uuid(),
+  profile_id         uuid not null references public.profiles(id) on delete cascade,
+  clerk_user_id      text not null,
+  reference_r2_key   text not null,
+  extracted_r2_key   text not null,
+  corner_coordinates jsonb,
+  detected_material  text,
+  aspect_ratio       double precision,
+  original_width     integer,
+  original_height    integer,
+  extracted_width    integer,
+  extracted_height   integer,
+  status             text not null default 'completed'
+                       check (status in ('processing', 'completed', 'failed')),
+  credits_consumed   integer not null default 1,
+  label              text not null default 'Untitled Template',
+  created_at         timestamptz not null default now()
+);
+
+alter table public.extracted_templates enable row level security;
+
+-- Important:
+-- Folia uses Clerk, not Supabase Auth. Do NOT use:
+--   using (auth.uid() = user_id)
+-- because this table does not have user_id and auth.uid() is not our identity source.
+-- Use clerk_user_id + requesting_user_id() instead.
+create policy "Users can read own extracted templates"
+  on public.extracted_templates for select
+  using (clerk_user_id = requesting_user_id());
+
+create policy "Users can insert own extracted templates"
+  on public.extracted_templates for insert
+  with check (clerk_user_id = requesting_user_id());
+
+create policy "Users can update own extracted templates"
+  on public.extracted_templates for update
+  using (clerk_user_id = requesting_user_id());
+
+create index if not exists extracted_templates_user_id_idx
+  on public.extracted_templates(profile_id, created_at desc);
+
+create index if not exists extracted_templates_status_idx
+  on public.extracted_templates(clerk_user_id, status, created_at desc);
+
+-- ─── 7. purchases ────────────────────────────────────────────
 create table if not exists public.purchases (
   id                uuid primary key default gen_random_uuid(),
   profile_id        uuid not null references public.profiles(id) on delete cascade,
@@ -166,7 +212,7 @@ create policy "Users can read own purchases"
   on public.purchases for select
   using (clerk_user_id = requesting_user_id());
 
--- ─── 7. affiliates ───────────────────────────────────────────
+-- ─── 8. affiliates ───────────────────────────────────────────
 create table if not exists public.affiliates (
   id            uuid primary key default gen_random_uuid(),
   profile_id    uuid not null unique references public.profiles(id) on delete cascade,
@@ -189,7 +235,7 @@ create trigger affiliates_updated_at
   before update on public.affiliates
   for each row execute function handle_updated_at();
 
--- ─── 8. affiliate_referrals ──────────────────────────────────
+-- ─── 9. affiliate_referrals ──────────────────────────────────
 create table if not exists public.affiliate_referrals (
   id                    uuid primary key default gen_random_uuid(),
   affiliate_id          uuid not null references public.affiliates(id) on delete cascade,
@@ -201,7 +247,7 @@ create table if not exists public.affiliate_referrals (
   created_at            timestamptz not null default now()
 );
 
--- ─── 9. payment_events (idempotency) ────────────────────────
+-- ─── 10. payment_events (idempotency) ────────────────────────
 create table if not exists public.payment_events (
   id           text primary key,
   provider     text not null check (provider in ('mayar', 'polar')),
@@ -209,4 +255,3 @@ create table if not exists public.payment_events (
   processed_at timestamptz not null default now()
 );
 -- No RLS — service role only
-

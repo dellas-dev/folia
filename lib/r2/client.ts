@@ -33,7 +33,8 @@ export function isOwnedR2Key(key: string, clerkUserId: string) {
   return (
     key.startsWith(`uploads/${clerkUserId}/`) ||
     key.startsWith(`generations/${clerkUserId}/`) ||
-    key.startsWith(`removebg/${clerkUserId}/`)
+    key.startsWith(`removebg/${clerkUserId}/`) ||
+    key.startsWith(`extracted/${clerkUserId}/`)
   )
 }
 
@@ -49,6 +50,10 @@ export function buildUploadR2Key(clerkUserId: string, originalFilename: string) 
 
 export function buildGenerationR2Key(clerkUserId: string, generationId: string, index: number, ext = 'png') {
   return `generations/${clerkUserId}/${generationId}-${index}.${ext}`
+}
+
+export function buildExtractedR2Key(clerkUserId: string, generationId: string, ext = 'png') {
+  return `extracted/${clerkUserId}/${generationId}.${ext}`
 }
 
 export function buildRemoveBgR2Key(clerkUserId: string) {

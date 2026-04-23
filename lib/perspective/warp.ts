@@ -2,12 +2,23 @@ import sharp from 'sharp'
 import type { CornerPoints, Point } from './homography'
 import { extractRectifiedSurfaceRuntime } from './extract-runtime.js'
 import { applyH, computeHomography, invertMatrix3x3, isInsideQuad } from './homography-runtime.js'
-import { applySoftEdgeMask, clampShadowSigma, compositeSoftenedOverlay, type DesignBlendMode } from '@/lib/mockup/compositing'
-import { normalizeInternalBlurSigma } from '@/lib/mockup/sigma'
-import type { MockupScenePreset } from '@/types'
+import { applySoftEdgeMask, clampShadowSigma, compositeSoftenedOverlay, type DesignBlendMode } from '../mockup/compositing'
+import { normalizeInternalBlurSigma } from '../mockup/sigma'
+import type { MockupScenePreset } from '../../types'
 
 const MAX_DESIGN_PX = 1200
 const MAX_REF_PX = 1500
+const MIN_SURFACE_EDGE_PX = 64
+const DEFAULT_PAPER_TONE = { r: 246, g: 243, b: 237, alpha: 1 }
+
+type ExtractSurfaceOptions = {
+  neutralize?: boolean
+}
+
+type CleanExtractedSurfaceOptions = {
+  materialTexture?: string
+  lightingDirection?: string
+}
 
 function clampEdgeSofteningSigma(value: number | undefined) {
   const normalized = normalizeInternalBlurSigma(value)
@@ -51,6 +62,58 @@ function bilinearSample(
   ]
 }
 
+function distance(a: Point, b: Point) {
+  return Math.hypot(b.x - a.x, b.y - a.y)
+}
+
+function clamp01(value: number) {
+  return Math.max(0, Math.min(1, value))
+}
+
+function clampByte(value: number) {
+  return Math.max(0, Math.min(255, Math.round(value)))
+}
+
+function mix(a: number, b: number, amount: number) {
+  return a + (b - a) * clamp01(amount)
+}
+
+function pointsArrayToCorners(points: Point[]): CornerPoints {
+  if (points.length !== 4) {
+    throw new Error('extractSurface requires exactly 4 points ordered as topLeft, topRight, bottomRight, bottomLeft.')
+  }
+
+  return {
+    topLeft: points[0],
+    topRight: points[1],
+    bottomRight: points[2],
+    bottomLeft: points[3],
+  }
+}
+
+function getSurfaceSize(corners: CornerPoints) {
+  const avgWidth = (distance(corners.topLeft, corners.topRight) + distance(corners.bottomLeft, corners.bottomRight)) / 2
+  const avgHeight = (distance(corners.topLeft, corners.bottomLeft) + distance(corners.topRight, corners.bottomRight)) / 2
+
+  return {
+    width: Math.max(MIN_SURFACE_EDGE_PX, Math.round(avgWidth)),
+    height: Math.max(MIN_SURFACE_EDGE_PX, Math.round(avgHeight)),
+  }
+}
+
+async function neutralizeSurfaceColors(buffer: Buffer) {
+  return sharp(buffer)
+    .flatten({ background: DEFAULT_PAPER_TONE })
+    .greyscale()
+    // Keep the luminance texture from the photo, but strip the old design hue.
+    .normalise({ lower: 1, upper: 99 })
+    .linear(1.03, -3)
+    .tint({ r: 248, g: 245, b: 239 })
+    .sharpen({ sigma: 1.05, m1: 1.2, m2: 2, x1: 2, y2: 10, y3: 16 })
+    .png({ compressionLevel: 9, adaptiveFiltering: true })
+    .toBuffer()
+}
+
 // Returns the reference image resized to ≤ MAX_REF_PX and its dimensions.
 // Call this once before detectMockupCorners so the corners match the resized dims.
 export async function prepareReference(refBuffer: Buffer): Promise<{
@@ -69,6 +132,258 @@ export async function prepareReference(refBuffer: Buffer): Promise<{
     .toBuffer()
 
   return { resizedBuffer, width: info.width, height: info.height }
+}
+
+export async function extractSurface(
+  imageBuffer: Buffer,
+  points: Point[],
+  options: ExtractSurfaceOptions = {}
+): Promise<{
+  buffer: Buffer
+  width: number
+  height: number
+}> {
+  const corners = pointsArrayToCorners(points)
+  const xs = points.map((point) => point.x)
+  const ys = points.map((point) => point.y)
+
+  const metadata = await sharp(imageBuffer).rotate().metadata()
+  const imageWidth = metadata.width
+  const imageHeight = metadata.height
+
+  if (!imageWidth || !imageHeight) {
+    throw new Error('extractSurface could not read source image dimensions.')
+  }
+
+  const cropPadding = Math.max(
+    12,
+    Math.round(Math.max(
+      distance(corners.topLeft, corners.topRight),
+      distance(corners.bottomLeft, corners.bottomRight),
+      distance(corners.topLeft, corners.bottomLeft),
+      distance(corners.topRight, corners.bottomRight),
+    ) * 0.08)
+  )
+
+  const left = Math.floor(Math.min(...xs) - cropPadding)
+  const top = Math.floor(Math.min(...ys) - cropPadding)
+  const right = Math.ceil(Math.max(...xs) + cropPadding)
+  const bottom = Math.ceil(Math.max(...ys) + cropPadding)
+
+  const extendLeft = Math.max(0, -left)
+  const extendTop = Math.max(0, -top)
+  const extendRight = Math.max(0, right - imageWidth)
+  const extendBottom = Math.max(0, bottom - imageHeight)
+
+  const extractedLeft = left + extendLeft
+  const extractedTop = top + extendTop
+  const extractedWidth = right - left
+  const extractedHeight = bottom - top
+
+  const extendedBuffer = await sharp(imageBuffer)
+    .rotate()
+    .ensureAlpha()
+    .extend({
+      top: extendTop,
+      bottom: extendBottom,
+      left: extendLeft,
+      right: extendRight,
+      background: { r: 255, g: 255, b: 255, alpha: 0 },
+    })
+    .extract({
+      left: extractedLeft,
+      top: extractedTop,
+      width: Math.max(1, extractedWidth),
+      height: Math.max(1, extractedHeight),
+    })
+    .raw()
+    .toBuffer({ resolveWithObject: true })
+
+  const adjustedCorners: CornerPoints = {
+    topLeft: {
+      x: corners.topLeft.x - left,
+      y: corners.topLeft.y - top,
+    },
+    topRight: {
+      x: corners.topRight.x - left,
+      y: corners.topRight.y - top,
+    },
+    bottomRight: {
+      x: corners.bottomRight.x - left,
+      y: corners.bottomRight.y - top,
+    },
+    bottomLeft: {
+      x: corners.bottomLeft.x - left,
+      y: corners.bottomLeft.y - top,
+    },
+  }
+
+  const outputSize = getSurfaceSize(adjustedCorners)
+  const src: Point[] = [
+    adjustedCorners.topLeft,
+    adjustedCorners.topRight,
+    adjustedCorners.bottomRight,
+    adjustedCorners.bottomLeft,
+  ]
+  const dst: Point[] = [
+    { x: 0, y: 0 },
+    { x: outputSize.width - 1, y: 0 },
+    { x: outputSize.width - 1, y: outputSize.height - 1 },
+    { x: 0, y: outputSize.height - 1 },
+  ]
+
+  const H = computeHomography(dst, src)
+  const outData = Buffer.alloc(outputSize.width * outputSize.height * 4, 0)
+
+  for (let y = 0; y < outputSize.height; y++) {
+    for (let x = 0; x < outputSize.width; x++) {
+      const { x: sx, y: sy } = applyH(H, { x, y })
+
+      if (
+        sx < 0 ||
+        sy < 0 ||
+        sx >= extendedBuffer.info.width ||
+        sy >= extendedBuffer.info.height
+      ) {
+        continue
+      }
+
+      const [r, g, b, a] = bilinearSample(extendedBuffer.data, extendedBuffer.info.width, extendedBuffer.info.height, sx, sy)
+      const index = (y * outputSize.width + x) * 4
+      outData[index] = r
+      outData[index + 1] = g
+      outData[index + 2] = b
+      outData[index + 3] = a
+    }
+  }
+
+  const rectifiedBuffer = await sharp(outData, {
+    raw: { width: outputSize.width, height: outputSize.height, channels: 4 },
+  })
+    .png()
+    .toBuffer()
+
+  return {
+    buffer: options.neutralize === false ? rectifiedBuffer : await neutralizeSurfaceColors(rectifiedBuffer),
+    width: outputSize.width,
+    height: outputSize.height,
+  }
+}
+
+function getMaterialCleanupProfile(materialTexture?: string, lightingDirection?: string) {
+  const material = (materialTexture ?? '').toLowerCase()
+  const lighting = (lightingDirection ?? '').toLowerCase()
+  const isWood = /wood|timber|oak|walnut|plywood|mahogany/.test(material)
+  const isCanvas = /canvas/.test(material)
+  const isLinen = /linen|cotton rag|textured paper|fabric/.test(material)
+  const isPaper = /paper|cardstock|matte|paperboard/.test(material) || (!isWood && !isCanvas)
+  const warmLight = /warm|golden|sunset|candle|amber/.test(lighting)
+  const coolLight = /cool|blue|north|overcast/.test(lighting)
+
+  return {
+    blurSigma: isWood ? 4.4 : isCanvas ? 4.8 : isLinen ? 5.2 : 5.6,
+    globalNeutralize: isWood ? 0.08 : isCanvas ? 0.18 : isLinen ? 0.24 : 0.3,
+    textureRetentionInMask: isWood ? 0.55 : isCanvas ? 0.4 : isLinen ? 0.28 : 0.22,
+    blurColorRetention: isWood ? 0.9 : isCanvas ? 0.55 : isLinen ? 0.38 : 0.28,
+    paperWarmthOffset: warmLight ? 6 : coolLight ? -4 : 0,
+    likelyPaperLike: isPaper || isLinen || isCanvas,
+  }
+}
+
+export async function cleanExtractedSurface(
+  extractedBuffer: Buffer,
+  options: CleanExtractedSurfaceOptions = {}
+): Promise<{
+  buffer: Buffer
+  width: number
+  height: number
+}> {
+  const profile = getMaterialCleanupProfile(options.materialTexture, options.lightingDirection)
+
+  const { data: originalRaw, info } = await sharp(extractedBuffer)
+    .flatten({ background: DEFAULT_PAPER_TONE })
+    .removeAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true })
+
+  const blurredRaw = await sharp(extractedBuffer)
+    .flatten({ background: DEFAULT_PAPER_TONE })
+    .removeAlpha()
+    .blur(profile.blurSigma)
+    .raw()
+    .toBuffer()
+
+  const output = Buffer.alloc(info.width * info.height * 3)
+
+  for (let i = 0; i < originalRaw.length; i += 3) {
+    const r = originalRaw[i]
+    const g = originalRaw[i + 1]
+    const b = originalRaw[i + 2]
+    const br = blurredRaw[i]
+    const bg = blurredRaw[i + 1]
+    const bb = blurredRaw[i + 2]
+
+    const luminance = r * 0.299 + g * 0.587 + b * 0.114
+    const blurredLuminance = br * 0.299 + bg * 0.587 + bb * 0.114
+    const saturation = (Math.max(r, g, b) - Math.min(r, g, b)) / 255
+    const detailScore = clamp01((Math.abs(luminance - blurredLuminance) - 5) / 52)
+    const darkInkScore = clamp01((blurredLuminance - luminance - 8) / 92)
+    const colorInkScore = clamp01((saturation - (profile.likelyPaperLike ? 0.03 : 0.07)) / 0.22)
+    const mask = Math.max(profile.globalNeutralize, Math.pow(Math.max(detailScore, darkInkScore, colorInkScore), 0.82))
+
+    const paperTarget = {
+      r: clampByte(blurredLuminance + 14 + profile.paperWarmthOffset),
+      g: clampByte(blurredLuminance + 10 + Math.round(profile.paperWarmthOffset * 0.45)),
+      b: clampByte(blurredLuminance + (profile.likelyPaperLike ? 6 : 8) - Math.round(profile.paperWarmthOffset * 0.2)),
+    }
+
+    const localColorRetention = mix(profile.blurColorRetention, profile.likelyPaperLike ? 0.08 : 0.3, mask)
+    const baseR = mix(paperTarget.r, br, localColorRetention)
+    const baseG = mix(paperTarget.g, bg, localColorRetention)
+    const baseB = mix(paperTarget.b, bb, localColorRetention)
+
+    const residual = Math.max(-12, Math.min(12, luminance - blurredLuminance))
+    const preservedResidual = residual * mix(1, profile.textureRetentionInMask, mask)
+    let outR = mix(r, baseR + preservedResidual, mask)
+    let outG = mix(g, baseG + preservedResidual, mask)
+    let outB = mix(b, baseB + preservedResidual, mask)
+
+    if (profile.likelyPaperLike) {
+      const localNeutralStrength = Math.max(mask, profile.globalNeutralize)
+      const mono = (outR + outG + outB) / 3
+      outR = mix(outR, mono + 5 + profile.paperWarmthOffset * 0.45, localNeutralStrength * 0.78)
+      outG = mix(outG, mono + 2 + profile.paperWarmthOffset * 0.22, localNeutralStrength * 0.78)
+      outB = mix(outB, mono - 2 - profile.paperWarmthOffset * 0.12, localNeutralStrength * 0.78)
+    }
+
+    output[i] = clampByte(outR)
+    output[i + 1] = clampByte(outG)
+    output[i + 2] = clampByte(outB)
+  }
+
+  const { data, info: cleanedInfo } = await sharp(output, {
+    raw: { width: info.width, height: info.height, channels: 3 },
+  })
+    .modulate({
+      brightness: profile.likelyPaperLike ? 1.012 : 1.005,
+      saturation: profile.likelyPaperLike ? 0.9 : 0.98,
+    })
+    .sharpen({
+      sigma: profile.likelyPaperLike ? 0.95 : 0.8,
+      m1: 1.15,
+      m2: 2.2,
+      x1: 2,
+      y2: 10,
+      y3: 14,
+    })
+    .png({ compressionLevel: 9, adaptiveFiltering: true })
+    .toBuffer({ resolveWithObject: true })
+
+  return {
+    buffer: data,
+    width: cleanedInfo.width,
+    height: cleanedInfo.height,
+  }
 }
 
 // Warps `designBuffer` onto a canvas of `refWidth × refHeight` using the

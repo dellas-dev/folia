@@ -160,6 +160,67 @@ create index generations_public_idx
 
 ---
 
+### `extracted_templates`
+Stores reusable blank-canvas extracts created from physical mockup references.
+
+```sql
+create table public.extracted_templates (
+  id                 uuid primary key default gen_random_uuid(),
+  profile_id         uuid not null references public.profiles(id) on delete cascade,
+  clerk_user_id      text not null,
+
+  -- Cloudflare R2 paths
+  reference_r2_key   text not null,              -- original source photo
+  extracted_r2_key   text not null,              -- extracted blank canvas PNG
+
+  -- Vision / geometry metadata
+  corner_coordinates jsonb,                      -- [{x,y}, {x,y}, {x,y}, {x,y}]
+  detected_material  text,                       -- 'Matte Paper', 'Canvas', 'Linen', etc.
+  aspect_ratio       double precision,
+
+  -- Dimensions
+  original_width     integer,
+  original_height    integer,
+  extracted_width    integer,
+  extracted_height   integer,
+
+  -- Workflow state
+  status             text not null default 'completed'
+                       check (status in ('processing', 'completed', 'failed')),
+  credits_consumed   integer not null default 1,
+  label              text not null default 'Untitled Template',
+  created_at         timestamptz not null default now()
+);
+
+alter table public.extracted_templates enable row level security;
+
+-- Do NOT use auth.uid() = user_id here.
+-- Folia uses Clerk auth and this table stores clerk_user_id, not a Supabase auth.users UUID.
+create policy "Users can read own extracted templates"
+  on public.extracted_templates for select
+  using (clerk_user_id = requesting_user_id());
+
+create policy "Users can insert own extracted templates"
+  on public.extracted_templates for insert
+  with check (clerk_user_id = requesting_user_id());
+
+create policy "Users can update own extracted templates"
+  on public.extracted_templates for update
+  using (clerk_user_id = requesting_user_id());
+
+create index extracted_templates_user_id_idx
+  on public.extracted_templates(profile_id, created_at desc);
+```
+
+Important:
+
+- The original draft used `user_id UUID references auth.users(id)`.
+- Folia does **not** use Supabase Auth. It uses Clerk + `profiles`.
+- Because of that, the production-safe version here uses `profile_id` + `clerk_user_id`.
+- Equivalent RLS for Folia is `clerk_user_id = requesting_user_id()`, not `auth.uid() = user_id`.
+
+---
+
 ### `purchases`
 Tracks every payment (one-time or subscription).
 

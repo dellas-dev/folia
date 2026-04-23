@@ -15,6 +15,13 @@ export type DetectedCorners = {
   bottomLeft:  { x: number; y: number }
 }
 
+export type SurfaceVisionAnalysis = {
+  corners: DetectedCorners
+  materialTexture: string
+  lightingDirection: string
+  raw: string
+}
+
 function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value))
 }
@@ -52,6 +59,49 @@ function parseCorners(raw: string, w: number, h: number): DetectedCorners | null
     }
 
     return corners
+  } catch {
+    return null
+  }
+}
+
+function sanitizeShortLabel(value: unknown, fallback: string) {
+  if (typeof value !== 'string') return fallback
+
+  const cleaned = value
+    .replace(/[`"'*]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+  return cleaned || fallback
+}
+
+function parseSurfaceVisionAnalysis(raw: string, w: number, h: number): SurfaceVisionAnalysis | null {
+  const stripped = raw.replace(/```[a-z]*\n?/gi, '').replace(/```/g, '').trim()
+  const match = stripped.match(/\{[\s\S]*\}/)
+  if (!match) return null
+
+  try {
+    const parsed = JSON.parse(match[0]) as {
+      corners?: DetectedCorners
+      topLeft?: { x: number; y: number }
+      topRight?: { x: number; y: number }
+      bottomRight?: { x: number; y: number }
+      bottomLeft?: { x: number; y: number }
+      material_texture?: string
+      materialTexture?: string
+      lighting_direction?: string
+      lightingDirection?: string
+    }
+
+    const corners = parseCorners(JSON.stringify(parsed.corners ?? parsed), w, h)
+    if (!corners) return null
+
+    return {
+      corners,
+      materialTexture: sanitizeShortLabel(parsed.material_texture ?? parsed.materialTexture, 'matte paper'),
+      lightingDirection: sanitizeShortLabel(parsed.lighting_direction ?? parsed.lightingDirection, 'soft front lighting'),
+      raw,
+    }
   } catch {
     return null
   }
@@ -110,4 +160,77 @@ Output ONLY the JSON, nothing else.`
   }
 
   throw new Error('CORNER_DETECTION_FAILED')
+}
+
+export async function analyzeExtractSurfaceVision(
+  imageBase64: string,
+  mimeType: string,
+  imageWidth: number,
+  imageHeight: number,
+): Promise<SurfaceVisionAnalysis> {
+  const systemPrompt = `You are a precise computer vision assistant. Output ONLY a JSON object with keys corners, material_texture, and lighting_direction. No markdown, no explanation.`
+
+  const userMessage = `Analyze this image.
+
+1. Find the 4 precise corners [x, y] of the primary paper, canvas, poster, sign, or printed surface.
+2. Identify the base material texture in a short phrase (examples: matte paper, linen paper, painted canvas, stained wood).
+3. Describe the lighting direction in a short phrase (examples: soft daylight from top-left, frontal studio light, warm side light from right).
+
+Return JSON in this exact shape:
+{"corners":{"topLeft":{"x":0.25,"y":0.15},"topRight":{"x":0.75,"y":0.15},"bottomRight":{"x":0.75,"y":0.85},"bottomLeft":{"x":0.25,"y":0.85}},"material_texture":"matte paper","lighting_direction":"soft daylight from top-left"}
+
+Use percentage coordinates from 0.0 to 1.0 for corners. Output ONLY the JSON.`
+
+  try {
+    const completion = await getGroq().chat.completions.create({
+      model: VISION_MODEL,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'image_url',
+              image_url: { url: `data:${mimeType};base64,${imageBase64}` },
+            },
+            { type: 'text', text: userMessage },
+          ],
+        },
+      ],
+      temperature: 0.1,
+      max_tokens: 260,
+    })
+
+    const raw = completion.choices[0]?.message?.content?.trim() ?? ''
+    console.log('[detector] analyzeExtractSurfaceVision raw:', raw.slice(0, 400))
+
+    const parsed = parseSurfaceVisionAnalysis(raw, imageWidth, imageHeight)
+    if (parsed) {
+      console.log('[detector] analyzeExtractSurfaceVision result:', {
+        corners: parsed.corners,
+        materialTexture: parsed.materialTexture,
+        lightingDirection: parsed.lightingDirection,
+      })
+      return parsed
+    }
+
+    console.warn('[detector] analyzeExtractSurfaceVision: unparseable, falling back to corners-only detection')
+    return {
+      corners: await detectPaperCorners(imageBase64, mimeType, imageWidth, imageHeight),
+      materialTexture: 'matte paper',
+      lightingDirection: 'soft front lighting',
+      raw,
+    }
+  } catch (error: any) {
+    const msg = error?.message ?? ''
+    console.error('[detector] analyzeExtractSurfaceVision error:', msg)
+    if (msg.includes('429') || msg.includes('rate_limit')) throw new Error('GROQ_RATE_LIMIT')
+
+    return {
+      corners: await detectPaperCorners(imageBase64, mimeType, imageWidth, imageHeight),
+      materialTexture: 'matte paper',
+      lightingDirection: 'soft front lighting',
+      raw: '',
+    }
+  }
 }

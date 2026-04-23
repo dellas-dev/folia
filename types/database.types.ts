@@ -77,6 +77,29 @@ export interface Database {
         Update: Partial<Database['public']['Tables']['generations']['Insert']>
         Relationships: []
       }
+      extracted_templates: {
+        Row: {
+          id: string
+          profile_id: string
+          clerk_user_id: string
+          reference_r2_key: string
+          extracted_r2_key: string
+          corner_coordinates: Json | null
+          detected_material: string | null
+          aspect_ratio: number | null
+          original_width: number | null
+          original_height: number | null
+          extracted_width: number | null
+          extracted_height: number | null
+          status: 'processing' | 'completed' | 'failed'
+          credits_consumed: number
+          label: string
+          created_at: string
+        }
+        Insert: Omit<Database['public']['Tables']['extracted_templates']['Row'], 'id' | 'created_at'>
+        Update: Partial<Database['public']['Tables']['extracted_templates']['Insert']>
+        Relationships: []
+      }
       purchases: {
         Row: {
           id: string
