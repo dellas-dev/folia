@@ -53,6 +53,8 @@ type BeforeAfterComparisonProps = {
   onPositionChange: (value: number) => void
 }
 
+type MockupTab = 'styled-suites' | 'extract-template'
+
 const ACTIVE_SUITE = MOCKUP_BUNDLES[0] ?? null
 const DEFAULT_TEMPLATE_ID = ACTIVE_SUITE?.templates[0]?.id ?? null
 
@@ -386,7 +388,7 @@ export function ExtractForm({
 }
 
 export function MockupForm({ tier, startingCredits, initialInvitationKey, initialPreviewUrl }: MockupFormProps) {
-  const [mode] = useState<MockupMode>('scene-template')
+  const [activeTab, setActiveTab] = useState<MockupTab>('styled-suites')
   const [invitationKey, setInvitationKey] = useState<string | null>(initialInvitationKey ?? null)
   const [invitationName, setInvitationName] = useState<string | null>(initialInvitationKey ? 'From Elements' : null)
   const [invitationPreviewUrl, setInvitationPreviewUrl] = useState<string | null>(initialPreviewUrl ?? null)
@@ -405,9 +407,13 @@ export function MockupForm({ tier, startingCredits, initialInvitationKey, initia
   const [isExporting, setIsExporting] = useState(false)
   const { toast } = useToast()
 
+  const mode: MockupMode = 'scene-template'
   const canUseMockups = (tier === 'pro' || tier === 'business') && credits > 0
-  const isTemplateMode = mode === 'scene-template'
+  const isStyledSuitesTab = activeTab === 'styled-suites'
+  const isExtractTab = activeTab === 'extract-template'
+  const hasLowCredits = credits > 0 && credits <= 5
   const showExtractComparison = !!resultUrl && !!extractPreviewUrl && isExtractResult(resultR2Key)
+  const hasExtractResult = showExtractComparison || isExtractResult(resultR2Key)
   const selectedTemplate = MOCKUP_BUNDLES
     .flatMap((bundle) => bundle.templates.map((template) => ({ bundle, template })))
     .find((entry) => entry.template.id === selectedTemplateId)
@@ -423,7 +429,7 @@ export function MockupForm({ tier, startingCredits, initialInvitationKey, initia
           </h1>
         </div>
         <div
-          className="rounded-[1.5rem] p-7 space-y-6"
+          className="rounded-[1.5rem] space-y-6 p-7"
           style={{ backgroundColor: '#ffffff', boxShadow: '0 2px 8px rgba(55,101,107,0.05), 0 12px 32px rgba(55,101,107,0.05)' }}
         >
           <span className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold" style={{ backgroundColor: '#eeeeee', color: '#70787a' }}>
@@ -435,7 +441,7 @@ export function MockupForm({ tier, startingCredits, initialInvitationKey, initia
               Upgrade to unlock Mockup Generator
             </h2>
             <p className="max-w-xl text-sm leading-7" style={{ color: '#70787a' }}>
-              Place your clipart into styled lifestyle scenes to create Etsy-ready listing images. Available on Pro and Business plans.
+              Place your clipart into styled lifestyle scenes or extract reusable blank templates from physical references. Available on Pro and Business plans.
             </p>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
@@ -546,21 +552,15 @@ export function MockupForm({ tier, startingCredits, initialInvitationKey, initia
         throw new Error('Upload your design first.')
       }
 
-      let requestConfig: ReturnType<typeof buildMockupRequest>
-
-      if (isTemplateMode) {
-        if (!selectedTemplateId) {
-          throw new Error('Choose a scene template first.')
-        }
-
-        requestConfig = buildMockupRequest({
-          mode: 'scene-template',
-          designR2Key: invitationKey,
-          templateId: selectedTemplateId,
-        })
-      } else {
-        throw new Error('Mockup mode is temporarily hidden from the UI.')
+      if (!selectedTemplateId) {
+        throw new Error('Choose a scene template first.')
       }
+
+      const requestConfig = buildMockupRequest({
+        mode,
+        designR2Key: invitationKey,
+        templateId: selectedTemplateId,
+      })
 
       const response = await fetch(requestConfig.endpoint, {
         method: 'POST',
@@ -568,7 +568,7 @@ export function MockupForm({ tier, startingCredits, initialInvitationKey, initia
         body: JSON.stringify(requestConfig.body),
       })
       const data = await response.json() as GenerationResponse & { error?: string }
-      if (!response.ok) throw new Error(data.error || (isTemplateMode ? 'Scene Template generation failed.' : 'Mockup generation failed.'))
+      if (!response.ok) throw new Error(data.error || 'Scene Template generation failed.')
       setResultUrl(data.result.signed_url)
       setResultR2Key(data.result.r2_key)
       setCredits(data.credits_remaining)
@@ -598,27 +598,55 @@ export function MockupForm({ tier, startingCredits, initialInvitationKey, initia
   return (
     <div className="pb-8">
       <div className="mb-6 px-1">
-          <p className="text-[10px] font-bold uppercase tracking-[0.18em]" style={{ color: '#70787a' }}>
-          Styled Mockup Suites
+        <p className="text-[10px] font-bold uppercase tracking-[0.18em]" style={{ color: '#70787a' }}>
+          {isExtractTab ? 'Extract Template' : 'Styled Mockup Suites'}
         </p>
         <h1
           className="mt-1 text-3xl font-bold"
           style={{ fontFamily: 'var(--font-heading)', color: '#1a1c1c', letterSpacing: '-0.02em' }}
         >
-          Etsy Invitation Listing Mockups
+          {isExtractTab ? 'Reference to Canvas' : 'Etsy Invitation Listing Mockups'}
         </h1>
         <p className="mt-2 max-w-2xl text-sm leading-7" style={{ color: '#70787a' }}>
-          Build consistent listing visuals for your Etsy invitation shop. Start with one styled suite, then place your invitation, sign, place card, and table number into matching wedding scenes.
+          {isExtractTab
+            ? 'Turn any physical reference photo into a reusable blank template. Folia isolates the printable surface, reconstructs the material base, and preserves the original lighting and grain.'
+            : 'Build consistent listing visuals for your Etsy invitation shop. Start with one styled suite, then place your invitation, sign, place card, and table number into matching wedding scenes.'
+          }
         </p>
       </div>
+
       <div className="mb-5 flex flex-wrap items-center gap-2">
-        <span
-          className="inline-flex rounded-full px-5 py-2 text-sm font-semibold"
-          style={{ backgroundColor: '#37656b', color: '#ffffff' }}
-        >
-          Styled Mockup Suites
-        </span>
-        {ACTIVE_SUITE ? (
+        <div className="inline-flex rounded-full p-1" style={{ backgroundColor: '#ffffff', boxShadow: '0 2px 8px rgba(55,101,107,0.05)' }}>
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab('styled-suites')
+              setError(null)
+            }}
+            className="rounded-full px-4 py-2 text-sm font-semibold transition-colors"
+            style={{
+              backgroundColor: isStyledSuitesTab ? '#37656b' : 'transparent',
+              color: isStyledSuitesTab ? '#ffffff' : '#516164',
+            }}
+          >
+            Styled Mockup Suites
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab('extract-template')
+              setError(null)
+            }}
+            className="rounded-full px-4 py-2 text-sm font-semibold transition-colors"
+            style={{
+              backgroundColor: isExtractTab ? '#111827' : 'transparent',
+              color: isExtractTab ? '#ffffff' : '#516164',
+            }}
+          >
+            Extract Template
+          </button>
+        </div>
+        {isStyledSuitesTab && ACTIVE_SUITE ? (
           <span
             className="inline-flex rounded-full px-4 py-2 text-xs font-semibold uppercase tracking-[0.14em]"
             style={{ backgroundColor: '#f4f3f3', color: '#70787a' }}
@@ -629,8 +657,6 @@ export function MockupForm({ tier, startingCredits, initialInvitationKey, initia
       </div>
 
       <div className="grid gap-5 xl:grid-cols-[380px_1fr] xl:items-start">
-
-        {/* ── Left: Form ────────────────────────────────────── */}
         <div
           className="rounded-[1.5rem] p-5"
           style={{
@@ -638,154 +664,176 @@ export function MockupForm({ tier, startingCredits, initialInvitationKey, initia
             boxShadow: '0 2px 8px rgba(55,101,107,0.05), 0 12px 32px rgba(55,101,107,0.05)',
           }}
         >
-          <form onSubmit={handleSubmit} className="space-y-6">
+          {isStyledSuitesTab ? (
+            <form onSubmit={handleSubmit} className="space-y-6">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: '#70787a' }}>
+                    Choose Product Type
+                  </p>
+                  {selectedTemplate ? (
+                    <p className="text-[11px]" style={{ color: '#70787a' }}>
+                      {selectedTemplate.bundle.label} / {selectedTemplate.template.angleLabel}
+                    </p>
+                  ) : null}
+                </div>
+                <div className="space-y-3 rounded-[1rem] p-3" style={{ backgroundColor: '#f4f3f3' }}>
+                  {MOCKUP_BUNDLES.map((bundle) => (
+                    <div key={bundle.id} className="space-y-2">
+                      <div>
+                        <p className="text-xs font-semibold" style={{ color: '#1a1c1c' }}>{bundle.emoji} {bundle.label}</p>
+                        <p className="text-[11px] leading-5" style={{ color: '#70787a' }}>{bundle.description}</p>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        {bundle.templates.map((template) => {
+                          const active = template.id === selectedTemplateId
+                          return (
+                            <button
+                              key={template.id}
+                              type="button"
+                              onClick={() => setSelectedTemplateId(template.id)}
+                              className={cn(
+                                'overflow-hidden rounded-[0.875rem] border text-left transition-all',
+                                active && 'shadow-[0_0_0_2px_#37656b,0_8px_20px_rgba(55,101,107,0.12)]'
+                              )}
+                              style={{
+                                borderColor: active ? '#37656b' : 'rgba(192,200,201,0.7)',
+                                backgroundColor: '#ffffff',
+                              }}
+                            >
+                              <img src={template.thumbUrl} alt={`${bundle.label} ${template.angleLabel}`} className="h-20 w-full object-cover" />
+                              <div className="px-2.5 py-2">
+                                <p className="text-[11px] font-semibold" style={{ color: active ? '#37656b' : '#1a1c1c' }}>
+                                  {template.angleEmoji} {template.angleLabel}
+                                </p>
+                              </div>
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
 
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: '#70787a' }}>
-                  Choose Product Type
-                </p>
-                {selectedTemplate ? (
-                  <p className="text-[11px]" style={{ color: '#70787a' }}>
-                    {selectedTemplate.bundle.label} / {selectedTemplate.template.angleLabel}
+              <div className="space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <label htmlFor="invitation-file" className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: '#70787a' }}>
+                    Your Design
+                  </label>
+                  <span className="text-[10px] uppercase tracking-[0.16em]" style={{ color: '#c0c8c9' }}>
+                    JPG, PNG, WEBP
+                  </span>
+                </div>
+                <label
+                  className={cn('flex min-h-28 cursor-pointer flex-col items-center justify-center gap-2 rounded-[1rem] px-5 py-5 text-center transition-all', uploading && 'cursor-wait opacity-60')}
+                  style={{ border: '1.5px dashed rgba(192,200,201,0.7)', backgroundColor: '#f4f3f3' }}
+                  onMouseEnter={(e) => {
+                    if (!uploading) {
+                      e.currentTarget.style.borderColor = 'rgba(55,101,107,0.5)'
+                      e.currentTarget.style.backgroundColor = 'rgba(55,101,107,0.02)'
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = 'rgba(192,200,201,0.7)'
+                    e.currentTarget.style.backgroundColor = '#f4f3f3'
+                  }}
+                >
+                  <input
+                    id="invitation-file"
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    className="sr-only"
+                    disabled={uploading || submitting}
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0]
+                      if (!file) return
+                      await uploadInvitation(file)
+                      e.target.value = ''
+                    }}
+                  />
+                  {uploading
+                    ? <LoaderCircle className="size-5 animate-spin" style={{ color: '#37656b' }} />
+                    : <Upload className="size-5" style={{ color: '#37656b' }} />
+                  }
+                  <p className="text-xs font-medium" style={{ color: '#404849' }}>Click to upload your art</p>
+                  <p className="text-[10px]" style={{ color: '#c0c8c9' }}>or drag and drop here</p>
+                </label>
+                {invitationPreviewUrl && invitationKey ? (
+                  <div className="flex items-center gap-3 rounded-[0.875rem] p-3" style={{ backgroundColor: '#d1e3e6' }}>
+                    <img src={invitationPreviewUrl} alt="Design preview" className="h-14 w-auto rounded-lg object-contain" />
+                    <div className="min-w-0">
+                      <p className="truncate text-xs font-semibold" style={{ color: '#37656b' }}>{invitationName}</p>
+                      <p className="mt-0.5 text-[10px]" style={{ color: '#516164' }}>Ready to use in mockup</p>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="rounded-[0.875rem] px-4 py-3 text-xs leading-6" style={{ backgroundColor: 'rgba(55,101,107,0.07)', color: '#37656b' }}>
+                Styled Mockup Suites are fixed listing scenes for Etsy invitation sellers. Choose one product type from the Eucalyptus Wedding Suite, upload your artwork, and Folia will place it into the matching template.
+              </div>
+
+              {error ? (
+                <div className="flex items-start gap-3 rounded-[0.875rem] px-4 py-3 text-sm" style={{ backgroundColor: 'rgba(186,26,26,0.06)', color: '#ba1a1a' }}>
+                  <AlertCircle className="mt-0.5 size-4 shrink-0" />
+                  <p>{error}</p>
+                </div>
+              ) : null}
+
+              {hasLowCredits ? (
+                <div className="flex items-start gap-3 rounded-[0.875rem] px-4 py-3 text-sm" style={{ backgroundColor: 'rgba(128,84,59,0.08)', color: '#80543b' }}>
+                  <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+                  <p>Only <strong>{credits}</strong> credit{credits === 1 ? '' : 's'} remaining. <Link href="/settings/billing" className="font-semibold underline underline-offset-2">Top up</Link></p>
+                </div>
+              ) : null}
+
+              <div className="space-y-2">
+                <button
+                  type="submit"
+                  disabled={!invitationKey || uploading || submitting}
+                  className="flex h-12 w-full items-center justify-center gap-2.5 rounded-full text-sm font-bold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+                  style={{ background: 'linear-gradient(135deg, #37656b, #507e84)', boxShadow: '0 4px 16px rgba(55,101,107,0.3)' }}
+                >
+                  {submitting ? <LoaderCircle className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
+                  {submitting ? 'Applying styled suite...' : 'Generate Styled Mockup'}
+                </button>
+                {!submitting ? (
+                  <p className="text-center text-[10px] uppercase tracking-[0.16em]" style={{ color: '#c0c8c9' }}>
+                    Uses <strong style={{ color: '#70787a' }}>1</strong> credit
+                  </p>
+                ) : null}
+                {!submitting ? (
+                  <p className="text-center text-[11px] leading-5" style={{ color: '#70787a' }}>
+                    Folia uses a fixed template-warp route so your invitation art stays consistent across matching Etsy listing scenes.
                   </p>
                 ) : null}
               </div>
-              <div className="space-y-3 rounded-[1rem] p-3" style={{ backgroundColor: '#f4f3f3' }}>
-                {MOCKUP_BUNDLES.map((bundle) => (
-                  <div key={bundle.id} className="space-y-2">
-                    <div>
-                      <p className="text-xs font-semibold" style={{ color: '#1a1c1c' }}>{bundle.emoji} {bundle.label}</p>
-                      <p className="text-[11px] leading-5" style={{ color: '#70787a' }}>{bundle.description}</p>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      {bundle.templates.map((template) => {
-                        const active = template.id === selectedTemplateId
-                        return (
-                          <button
-                            key={template.id}
-                            type="button"
-                            onClick={() => setSelectedTemplateId(template.id)}
-                            className={cn(
-                              'overflow-hidden rounded-[0.875rem] border text-left transition-all',
-                              active && 'shadow-[0_0_0_2px_#37656b,0_8px_20px_rgba(55,101,107,0.12)]'
-                            )}
-                            style={{
-                              borderColor: active ? '#37656b' : 'rgba(192,200,201,0.7)',
-                              backgroundColor: '#ffffff',
-                            }}
-                          >
-                            <img src={template.thumbUrl} alt={`${bundle.label} ${template.angleLabel}`} className="h-20 w-full object-cover" />
-                            <div className="px-2.5 py-2">
-                              <p className="text-[11px] font-semibold" style={{ color: active ? '#37656b' : '#1a1c1c' }}>
-                                {template.angleEmoji} {template.angleLabel}
-                              </p>
-                            </div>
-                          </button>
-                        )
-                      })}
-                    </div>
-                  </div>
-                ))}
+            </form>
+          ) : (
+            <div className="space-y-5">
+              <div className="rounded-[0.95rem] border px-4 py-3" style={{ borderColor: 'rgba(124,58,237,0.12)', backgroundColor: 'rgba(124,58,237,0.04)' }}>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em]" style={{ color: '#7C3AED' }}>
+                  Private Mockup Library
+                </p>
+                <p className="mt-2 text-[12px] leading-6" style={{ color: '#5b6475' }}>
+                  Upload a physical flat-lay, stationery shot, or Etsy reference, then convert it into a reusable blank surface for your own mockup library.
+                </p>
               </div>
-            </div>
 
-            {/* Design upload */}
-            <div className="space-y-2.5">
-              <div className="flex items-center justify-between">
-                <label htmlFor="invitation-file" className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: '#70787a' }}>
-                  Your Design
-                </label>
-                <span className="text-[10px] uppercase tracking-[0.16em]" style={{ color: '#c0c8c9' }}>
-                  JPG, PNG, WEBP
-                </span>
-              </div>
-              <label
-                className={cn('flex min-h-28 cursor-pointer flex-col items-center justify-center gap-2 rounded-[1rem] px-5 py-5 text-center transition-all', uploading && 'cursor-wait opacity-60')}
-                style={{ border: '1.5px dashed rgba(192,200,201,0.7)', backgroundColor: '#f4f3f3' }}
-                onMouseEnter={(e) => { if (!uploading) { e.currentTarget.style.borderColor = 'rgba(55,101,107,0.5)'; e.currentTarget.style.backgroundColor = 'rgba(55,101,107,0.02)' } }}
-                onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'rgba(192,200,201,0.7)'; e.currentTarget.style.backgroundColor = '#f4f3f3' }}
-              >
-                <input
-                  id="invitation-file"
-                  type="file"
-                  accept="image/png,image/jpeg,image/webp"
-                  className="sr-only"
-                  disabled={uploading || submitting}
-                  onChange={async (e) => { const f = e.target.files?.[0]; if (!f) return; await uploadInvitation(f); e.target.value = '' }}
-                />
-                {uploading
-                  ? <LoaderCircle className="size-5 animate-spin" style={{ color: '#37656b' }} />
-                  : <Upload className="size-5" style={{ color: '#37656b' }} />
-                }
-                <p className="text-xs font-medium" style={{ color: '#404849' }}>Click to upload your art</p>
-                <p className="text-[10px]" style={{ color: '#c0c8c9' }}>or drag and drop here</p>
-              </label>
-              {invitationPreviewUrl && invitationKey ? (
-                <div className="flex items-center gap-3 rounded-[0.875rem] p-3" style={{ backgroundColor: '#d1e3e6' }}>
-                  <img src={invitationPreviewUrl} alt="Design preview" className="h-14 w-auto rounded-lg object-contain" />
-                  <div className="min-w-0">
-                    <p className="truncate text-xs font-semibold" style={{ color: '#37656b' }}>{invitationName}</p>
-                    <p className="mt-0.5 text-[10px]" style={{ color: '#516164' }}>Ready to use in mockup</p>
-                  </div>
+              {error ? (
+                <div className="flex items-start gap-3 rounded-[0.875rem] px-4 py-3 text-sm" style={{ backgroundColor: 'rgba(186,26,26,0.06)', color: '#ba1a1a' }}>
+                  <AlertCircle className="mt-0.5 size-4 shrink-0" />
+                  <p>{error}</p>
                 </div>
               ) : null}
-            </div>
 
-            <div className="rounded-[0.875rem] px-4 py-3 text-xs leading-6" style={{ backgroundColor: 'rgba(55,101,107,0.07)', color: '#37656b' }}>
-              Styled Mockup Suites are fixed listing scenes for Etsy invitation sellers. Choose one product type from the Eucalyptus Wedding Suite, upload your artwork, and Folia will place it into the matching template.
-            </div>
-
-            {/* Alerts */}
-            {error ? (
-              <div className="flex items-start gap-3 rounded-[0.875rem] px-4 py-3 text-sm" style={{ backgroundColor: 'rgba(186,26,26,0.06)', color: '#ba1a1a' }}>
-                <AlertCircle className="mt-0.5 size-4 shrink-0" />
-                <p>{error}</p>
-              </div>
-            ) : null}
-
-            {credits > 0 && credits <= 5 ? (
-              <div className="flex items-start gap-3 rounded-[0.875rem] px-4 py-3 text-sm" style={{ backgroundColor: 'rgba(128,84,59,0.08)', color: '#80543b' }}>
-                <AlertTriangle className="mt-0.5 size-4 shrink-0" />
-                <p>Only <strong>{credits}</strong> credit{credits === 1 ? '' : 's'} remaining. <Link href="/settings/billing" className="font-semibold underline underline-offset-2">Top up</Link></p>
-              </div>
-            ) : null}
-
-            {/* Generate */}
-            <div className="space-y-2">
-              <button
-                type="submit"
-                disabled={!invitationKey || uploading || submitting}
-                className="flex h-12 w-full items-center justify-center gap-2.5 rounded-full text-sm font-bold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
-                style={{ background: 'linear-gradient(135deg, #37656b, #507e84)', boxShadow: '0 4px 16px rgba(55,101,107,0.3)' }}
-              >
-                {submitting ? <LoaderCircle className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
-                {submitting
-                  ? 'Applying styled suite...'
-                  : 'Generate Styled Mockup'
-                }
-              </button>
-              {!submitting ? (
-                <p className="text-center text-[10px] uppercase tracking-[0.16em]" style={{ color: '#c0c8c9' }}>
-                  Uses <strong style={{ color: '#70787a' }}>1</strong> credit
-                </p>
+              {hasLowCredits ? (
+                <div className="flex items-start gap-3 rounded-[0.875rem] px-4 py-3 text-sm" style={{ backgroundColor: 'rgba(128,84,59,0.08)', color: '#80543b' }}>
+                  <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+                  <p>Only <strong>{credits}</strong> credit{credits === 1 ? '' : 's'} remaining. <Link href="/settings/billing" className="font-semibold underline underline-offset-2">Top up</Link></p>
+                </div>
               ) : null}
-              {!submitting ? (
-                <p className="text-center text-[11px] leading-5" style={{ color: '#70787a' }}>
-                  Folia uses a fixed template-warp route so your invitation art stays consistent across matching Etsy listing scenes.
-                </p>
-              ) : null}
-            </div>
-          </form>
-
-          {/* ── Extract from Reference (template mode only) ── */}
-          {isTemplateMode ? (
-            <div className="mt-6 space-y-4">
-              <div className="flex items-center gap-3">
-                <div className="h-px flex-1" style={{ backgroundColor: '#eeeeee' }} />
-                <span className="text-[11px]" style={{ color: '#c0c8c9' }}>atau</span>
-                <div className="h-px flex-1" style={{ backgroundColor: '#eeeeee' }} />
-              </div>
 
               <ExtractForm
                 extractKey={extractKey}
@@ -793,14 +841,16 @@ export function MockupForm({ tier, startingCredits, initialInvitationKey, initia
                 extractUploading={extractUploading}
                 extracting={extracting}
                 onUpload={uploadExtractReference}
-                onClear={() => { setExtractKey(null); setExtractPreviewUrl(null) }}
+                onClear={() => {
+                  setExtractKey(null)
+                  setExtractPreviewUrl(null)
+                }}
                 onExtract={handleExtract}
               />
             </div>
-          ) : null}
+          )}
         </div>
 
-        {/* ── Right: Preview ────────────────────────────────── */}
         <div
           className="flex min-h-[400px] flex-col rounded-[1.5rem] p-5"
           style={{ backgroundColor: '#f4f3f3' }}
@@ -821,14 +871,14 @@ export function MockupForm({ tier, startingCredits, initialInvitationKey, initia
                 >
                   <img
                     src={resultUrl}
-                    alt="Generated mockup"
+                    alt={hasExtractResult ? 'Extracted blank template' : 'Generated mockup'}
                     className="h-full w-full rounded-[0.75rem] object-cover"
                     style={{ minHeight: '280px' }}
                   />
                 </div>
               )}
               <p className="text-[10px] font-bold uppercase tracking-[0.18em]" style={{ color: '#70787a' }}>
-                {showExtractComparison ? 'Reference Extraction Result' : (isTemplateMode ? 'Scene Template Result' : 'AI Scene Result')}
+                {hasExtractResult ? 'Reference Extraction Result' : 'Scene Template Result'}
               </p>
               <div className="mt-auto flex gap-2.5">
                 <button
@@ -848,7 +898,7 @@ export function MockupForm({ tier, startingCredits, initialInvitationKey, initia
                   style={{ backgroundColor: '#ffffff', color: '#404849' }}
                 >
                   <Sparkles className="size-4" />
-                  Regenerate
+                  {hasExtractResult ? 'Extract Again' : 'Regenerate'}
                 </button>
               </div>
             </div>
@@ -859,10 +909,13 @@ export function MockupForm({ tier, startingCredits, initialInvitationKey, initia
               </div>
               <div>
                 <p className="text-sm font-semibold" style={{ color: '#404849', fontFamily: 'var(--font-heading)' }}>
-                  Mockup Preview
+                  {isExtractTab ? 'Extraction Preview' : 'Mockup Preview'}
                 </p>
                 <p className="mt-1 text-xs leading-5" style={{ color: '#70787a' }}>
-                  Choose a scene and upload your design to see the result here.
+                  {isExtractTab
+                    ? 'Upload a source reference to compare the original photo against the cleaned blank canvas here.'
+                    : 'Choose a scene and upload your design to see the result here.'
+                  }
                 </p>
               </div>
             </div>

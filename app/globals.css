@@ -85,8 +85,8 @@
   --color-chart-5: var(--chart-5);
 
   /* ── Typography ────────────────────────────────────────────── */
-  --font-sans:    var(--font-plus-jakarta), "Segoe UI", sans-serif;
-  --font-heading: var(--font-plus-jakarta), "Segoe UI", sans-serif;
+  --font-sans:    var(--font-manrope), "Segoe UI", sans-serif;
+  --font-heading: var(--font-be-vietnam-pro), "Segoe UI", sans-serif;
   --font-mono:    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 
   /* ── Radius ────────────────────────────────────────────────── */

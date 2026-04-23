@@ -1,15 +1,22 @@
 import type { Metadata } from 'next'
 import { ClerkProvider } from '@clerk/nextjs'
-import { Plus_Jakarta_Sans } from 'next/font/google'
+import { Be_Vietnam_Pro, Manrope } from 'next/font/google'
 
 import { ToastProvider } from '@/components/ui/toast-provider'
 
 import './globals.css'
 
-const plusJakartaSans = Plus_Jakarta_Sans({
+const manrope = Manrope({
   subsets: ['latin'],
-  variable: '--font-plus-jakarta',
+  variable: '--font-manrope',
   display: 'swap',
+})
+
+const beVietnamPro = Be_Vietnam_Pro({
+  subsets: ['latin'],
+  variable: '--font-be-vietnam-pro',
+  display: 'swap',
+  weight: ['400', '500', '600', '700', '800'],
 })
 
 export const metadata: Metadata = {
@@ -30,7 +37,7 @@ export default function RootLayout({
           {/* eslint-disable-next-line @next/next/no-sync-scripts */}
           <script src="https://mcp.figma.com/mcp/html-to-design/capture.js" async></script>
         </head>
-        <body className={`${plusJakartaSans.variable} antialiased`}>
+        <body className={`${manrope.variable} ${beVietnamPro.variable} antialiased`}>
           <ToastProvider>{children}</ToastProvider>
         </body>
       </html>
