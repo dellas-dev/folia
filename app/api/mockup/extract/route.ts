@@ -14,6 +14,20 @@ type ExtractBody = {
   reference_r2_key?: string
 }
 
+function isNonBlockingExtractedTemplateError(error: { code?: string | null; message?: string | null; details?: string | null }) {
+  const code = error.code ?? ''
+  const details = `${error.message ?? ''} ${error.details ?? ''}`.toLowerCase()
+
+  return (
+    code === '42P01' || // undefined_table
+    code === '42703' || // undefined_column
+    code === 'PGRST205' ||
+    code === 'PGRST204' ||
+    details.includes('extracted_templates') ||
+    details.includes('schema cache')
+  )
+}
+
 export async function POST(request: Request) {
   try {
     // ── Auth ─────────────────────────────────────────────────────────────
@@ -145,13 +159,10 @@ export async function POST(request: Request) {
       label: 'Untitled Template',
     }
 
-    const [generationResult, extractedTemplateResult, creditsResult] = await Promise.all([
+    const [generationResult, creditsResult] = await Promise.all([
       supabase
         .from('generations')
         .insert(generationInsert),
-      supabase
-        .from('extracted_templates')
-        .insert(extractedTemplateInsert),
       supabase
         .from('profiles')
         .update({ credits: creditsRemaining })
@@ -159,8 +170,19 @@ export async function POST(request: Request) {
     ])
 
     if (generationResult.error) throw generationResult.error
-    if (extractedTemplateResult.error) throw extractedTemplateResult.error
     if (creditsResult.error) throw creditsResult.error
+
+    const { error: extractedTemplateError } = await supabase
+      .from('extracted_templates')
+      .insert(extractedTemplateInsert)
+
+    if (extractedTemplateError) {
+      if (isNonBlockingExtractedTemplateError(extractedTemplateError)) {
+        console.warn('[mockup/extract] extracted_templates insert skipped:', extractedTemplateError)
+      } else {
+        throw extractedTemplateError
+      }
+    }
 
     return Response.json({
       generation_id: generationId,
