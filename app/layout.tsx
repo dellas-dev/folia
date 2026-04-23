@@ -1,23 +1,9 @@
 import type { Metadata } from 'next'
 import { ClerkProvider } from '@clerk/nextjs'
-import { Be_Vietnam_Pro, Manrope } from 'next/font/google'
 
 import { ToastProvider } from '@/components/ui/toast-provider'
 
 import './globals.css'
-
-const manrope = Manrope({
-  subsets: ['latin'],
-  variable: '--font-manrope',
-  display: 'swap',
-})
-
-const beVietnamPro = Be_Vietnam_Pro({
-  subsets: ['latin'],
-  variable: '--font-be-vietnam-pro',
-  display: 'swap',
-  weight: ['400', '500', '600', '700', '800'],
-})
 
 export const metadata: Metadata = {
   title: 'Folia',
@@ -34,10 +20,16 @@ export default function RootLayout({
     <ClerkProvider>
       <html lang="en" suppressHydrationWarning>
         <head>
+          <link rel="preconnect" href="https://fonts.googleapis.com" />
+          <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+          <link
+            href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&family=Manrope:wght@400;500;600;700&display=swap"
+            rel="stylesheet"
+          />
           {/* eslint-disable-next-line @next/next/no-sync-scripts */}
           <script src="https://mcp.figma.com/mcp/html-to-design/capture.js" async></script>
         </head>
-        <body className={`${manrope.variable} ${beVietnamPro.variable} antialiased`}>
+        <body className="antialiased">
           <ToastProvider>{children}</ToastProvider>
         </body>
       </html>
